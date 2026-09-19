@@ -1,0 +1,362 @@
+{
+  "$defs": {
+    "Action": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "enum": [
+            "ALLOW_TRANSACTION",
+            "DECLINE_TRANSACTION",
+            "MONITOR_CARD",
+            "MONITOR_CONNECTED_CARDS",
+            "WARN_CUSTOMER",
+            "VERIFY_WITH_CUSTOMER",
+            "STEP_UP_AUTH",
+            "BLOCK_CARD",
+            "BLOCK_ALL_CARDS",
+            "GENERATE_REPORT",
+            "CREATE_CASE",
+            "FILE_REPORT",
+            "ESCALATE_TO_ANALYST",
+            "CLOSE_NO_FRAUD"
+          ],
+          "title": "Action",
+          "type": "string"
+        },
+        "route": {
+          "enum": [
+            "auto",
+            "L1",
+            "L2"
+          ],
+          "title": "Route",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "route",
+        "reason"
+      ],
+      "title": "Action",
+      "type": "object"
+    },
+    "CaseRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "open",
+            "closed_fraud",
+            "closed_legitimate",
+            "escalated"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "fraud",
+            "legitimate",
+            "uncertain"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "fraud_probability": {
+          "maximum": 1,
+          "minimum": 0,
+          "title": "Fraud Probability",
+          "type": "number"
+        },
+        "pattern": {
+          "enum": [
+            "card_testing",
+            "card_not_present_fraud",
+            "card_not_present_new_device",
+            "out_of_region_use",
+            "account_takeover",
+            "undocumented",
+            "none"
+          ],
+          "title": "Pattern",
+          "type": "string"
+        },
+        "pattern_description": {
+          "default": "",
+          "title": "Pattern Description",
+          "type": "string"
+        },
+        "affected_txn_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Txn Ids",
+          "type": "array"
+        },
+        "first_suspicious_txn_id": {
+          "default": "",
+          "title": "First Suspicious Txn Id",
+          "type": "string"
+        },
+        "connected_card_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Connected Card Ids",
+          "type": "array"
+        },
+        "connected_device_profiles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Connected Device Profiles",
+          "type": "array"
+        },
+        "exposure_usd": {
+          "minimum": 0,
+          "title": "Exposure Usd",
+          "type": "number"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "title": "Evidence",
+          "type": "array"
+        },
+        "similar_prior_cases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Similar Prior Cases",
+          "type": "array"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "written_to_graph": {
+          "default": false,
+          "title": "Written To Graph",
+          "type": "boolean"
+        },
+        "graph_case_id": {
+          "default": "",
+          "title": "Graph Case Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "verdict",
+        "fraud_probability",
+        "pattern",
+        "exposure_usd",
+        "evidence",
+        "similar_prior_cases",
+        "summary"
+      ],
+      "title": "CaseRecord",
+      "type": "object"
+    },
+    "Evidence": {
+      "additionalProperties": false,
+      "properties": {
+        "claim": {
+          "title": "Claim",
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "graph",
+            "document",
+            "customer",
+            "external"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "ref": {
+          "title": "Ref",
+          "type": "string"
+        },
+        "entity_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "claim",
+        "source",
+        "ref"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "EvidenceRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "customer_validation",
+            "step_up_auth",
+            "analyst_info"
+          ],
+          "title": "Type",
+          "type": "string"
+        },
+        "asked_after_step": {
+          "minimum": 0,
+          "title": "Asked After Step",
+          "type": "integer"
+        },
+        "assumed_response": {
+          "title": "Assumed Response",
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "asked_after_step",
+        "assumed_response"
+      ],
+      "title": "EvidenceRequest",
+      "type": "object"
+    },
+    "Recommendations": {
+      "additionalProperties": false,
+      "properties": {
+        "initial": {
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Initial",
+          "type": "array"
+        },
+        "final": {
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "title": "Final",
+          "type": "array"
+        },
+        "what_changed": {
+          "default": "nothing",
+          "title": "What Changed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "initial",
+        "final"
+      ],
+      "title": "Recommendations",
+      "type": "object"
+    },
+    "SAR": {
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "default": false,
+          "title": "File",
+          "type": "boolean"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "narrative": {
+          "default": "",
+          "title": "Narrative",
+          "type": "string"
+        },
+        "subjects": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Subjects",
+          "type": "array"
+        },
+        "total_amount_usd": {
+          "default": 0,
+          "title": "Total Amount Usd",
+          "type": "number"
+        },
+        "activity_dates": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Activity Dates",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "SAR",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "case_id": {
+      "title": "Case Id",
+      "type": "string"
+    },
+    "case": {
+      "$ref": "#/$defs/CaseRecord"
+    },
+    "evidence_requests": {
+      "items": {
+        "$ref": "#/$defs/EvidenceRequest"
+      },
+      "title": "Evidence Requests",
+      "type": "array"
+    },
+    "next_best_actions": {
+      "$ref": "#/$defs/Recommendations"
+    },
+    "sar": {
+      "$ref": "#/$defs/SAR"
+    },
+    "stop_reason": {
+      "title": "Stop Reason",
+      "type": "string"
+    },
+    "tool_calls": {
+      "minimum": 0,
+      "title": "Tool Calls",
+      "type": "integer"
+    },
+    "tokens": {
+      "minimum": 0,
+      "title": "Tokens",
+      "type": "integer"
+    },
+    "latency_s": {
+      "minimum": 0,
+      "title": "Latency S",
+      "type": "number"
+    }
+  },
+  "required": [
+    "case_id",
+    "case",
+    "next_best_actions",
+    "sar",
+    "stop_reason",
+    "tool_calls",
+    "tokens",
+    "latency_s"
+  ],
+  "title": "Answer",
+  "type": "object"
+}

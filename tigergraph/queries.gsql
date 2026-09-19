@@ -1,0 +1,35 @@
+USE GRAPH Trace
+CREATE QUERY trace_customer_window(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
+  seeds = {Customer.*};
+  customers = SELECT c FROM seeds:c WHERE c.id == customer_id;
+  cards = SELECT k FROM customers:c -(OWNS:e)-> Card:k;
+  txns = SELECT t FROM cards:k -(MADE:e)-> Transaction:t WHERE t.ts <= cutoff;
+  PRINT txns;
+}
+CREATE QUERY trace_device_window(STRING device_id, STRING cutoff, STRING start_at) FOR GRAPH Trace {
+  seeds = {DeviceProfile.*};
+  devices = SELECT d FROM seeds:d WHERE d.id == device_id;
+  txns = SELECT t FROM devices:d -(DEVICE_TXNS:e)-> Transaction:t WHERE t.ts <= cutoff AND t.ts >= start_at;
+  PRINT txns;
+}
+CREATE QUERY trace_case_memory(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
+  seeds = {ClosedCase.*};
+  cases = SELECT h FROM seeds:h WHERE h.customer_id == customer_id AND h.closed_at < cutoff;
+  PRINT cases;
+}
+// Bounded breadth-first expansion on actual relationships, not score similarity.
+CREATE QUERY trace_network_bfs(SET<VERTEX<Card>> seeds, INT max_hops, STRING cutoff) FOR GRAPH Trace {
+  SetAccum<VERTEX> @@visited;
+  frontier = seeds;
+  frontier = SELECT s FROM frontier:s ACCUM @@visited += s;
+  WHILE frontier.size() > 0 LIMIT max_hops DO
+    txns = SELECT t FROM frontier:k -(MADE:e)-> Transaction:t WHERE t.ts <= cutoff;
+    devices = SELECT d FROM txns:t -(FROM_DEVICE:e)-> DeviceProfile:d;
+    linked = SELECT t FROM devices:d -(DEVICE_TXNS:e)-> Transaction:t WHERE t.ts <= cutoff;
+    frontier = SELECT k FROM linked:t -(ON_CARD:e)-> Card:k
+      WHERE k NOT IN @@visited
+      ACCUM @@visited += k;
+  END;
+  PRINT @@visited;
+}
+INSTALL QUERY trace_customer_window, trace_device_window, trace_case_memory, trace_network_bfs

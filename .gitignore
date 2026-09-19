@@ -1,0 +1,14 @@
+.venv/
+node_modules/
+frontend/dist/
+__pycache__/
+.pytest_cache/
+.env
+data/*
+!data/.gitkeep
+output/*
+!output/.gitkeep
+*.db*
+.DS_Store
+.ruff_cache/
+*.tsbuildinfo
