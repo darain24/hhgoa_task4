@@ -1,37 +1,92 @@
 # Trace demo — 4 minutes
 
-Record the actual running app. Identify local/replay mode honestly. Do not imply TigerGraph is live before completing integration verification.
+Record the actual running app against the live local TigerGraph. Everything below is true
+of the current build; do not claim anything beyond it.
 
-## 0:00–0:30 — The problem
+Before recording: `docker start tigergraph`, wait for `gadmin status` to show no `Warmup`,
+start the MCP server, start `./scripts/dev.sh`, confirm the header reads **20/20** graph
+persistence.
 
-“An alert is not a verdict. Fraud teams need to know what happened, how far it extends, and what action the evidence supports. Trace turns that process into an inspectable investigation.”
+## 0:00–0:35 — The finding
 
-Show the case queue, completion count, and service status. State the real mode. Explain that the dataset and model run locally without paid APIs.
+> "An alert is not a verdict. We were given a bank's own fraud model score on every
+> transaction, and the first thing we did was check it against the bank's own closed
+> cases. It scores ROC-AUC 0.053 — inverted. Every cleared case had scored 0.82 or higher."
 
-## 0:30–1:25 — Follow the network
+> "That model isn't broken. It's the thing that decides which alerts get opened, and the
+> ones it shouts loudest about are the customers who bought a new phone or went on a trip.
+> So we don't use it. Trace scores the evidence instead."
 
-Open HHG-014. Show the device-profile connection, transaction timeline, and cited historical cases. Explain the difference between a shared profile and corroborating repeated activity. Show the undocumented-pattern finding and its supporting query references. Describe any remaining uncertainty honestly.
+Show the case queue and the header: 20 organizer cases, 20 saved, 20/20 written to
+TigerGraph.
 
-## 1:25–2:20 — Change a decision
+## 0:35–1:30 — Follow the network (HHG-014)
 
-Open an uncertain case. Click “What would change this decision?” Explore confirmation, denial, and no reply without changing the record. Then explicitly record a **simulated** response in a disposable demonstration copy or chosen case. Show the preserved initial recommendation and changed final actions. Explain why L1/L2 approval remains required.
+Open HHG-014, the analyst request. Show:
 
-## 2:20–2:55 — Protect legitimate customers
+- The evidence graph: the flagged transaction, its device profile, and the other cards that
+  touched it.
+- **Why this probability** — the weighted findings panel. Point at `Shared origin +1.50`
+  and say the number is a fitted log-odds weight, not a guess.
+- The evidence list: `tigergraph:verified_derivation:` references, and the GraphRAG
+  documents including **R6 Shared origin** retrieved from the vector store. The agent
+  retrieved the rule it then applied.
+- The recommendation: `CREATE_CASE`, `ESCALATE_TO_ANALYST`, `MONITOR_CARD`, `FILE_REPORT`
+  (L2), `MONITOR_CONNECTED_CARDS` — and the SAR narrative naming the shared device profile
+  as the linking element, not an identified person.
 
-Show a case with plausible legitimate behavior. Explain the counterevidence and why the original risk score is not the answer. If showing a simulated confirmation, state that clearly and show its provenance.
+> "One cardholder's answer can't settle whether several cards run through one device
+> profile, so this case doesn't ask. R6 sends it to a report and connected-card
+> monitoring."
 
-## 2:55–3:30 — Audit and measurement
+## 1:30–2:25 — Change a decision
 
-Open the case/SAR preview and replay recorded events. Show export validation and historical diagnostics. Do not call historical-cohort performance hidden-benchmark accuracy. Mention that candidate discovery remains separate from the official twenty cases.
+Open an uncertain case. Use **What would change this decision?** to show confirmation,
+denial and no-reply branches without touching the record — point out `persisted: false`.
 
-## 3:30–4:00 — Technical credibility
+Then show a case that actually requested evidence (HHG-002, HHG-017, HHG-019 or HHG-020).
+Show `evidence_requests` with the simulated reply **and its stated basis**, then the initial
+and final recommendations side by side and `what_changed`.
 
-Show the architecture, actual model usage, and TigerGraph integration evidence if verified. End with the central contribution: “Trace makes the transition from uncertainty to action visible, testable, and defensible.”
+> "Seven of the twenty asked for evidence. Four changed their recommendation because of it.
+> Both versions stay in the answer."
+
+## 2:25–3:00 — Protect the legitimate half
+
+Open a `legitimate` case. Show the counter-evidence: the device marked New, the amount
+consistent with baseline, no velocity change.
+
+> "A new device is the strongest counter-indicator in this dataset — twelve percent fraud.
+> People buy new phones, and they're exactly the people the model flags. Six of these twenty
+> are closed as legitimate with no customer impact."
+
+## 3:00–3:35 — Case memory in the graph
+
+Show the event history replay for one case, then switch to the graph and read the
+`Investigation` vertex back:
+
+```
+i.verdict "fraud" · i.pattern "undocumented" · i.exposure 672.3
+i.actions "CREATE_CASE,ESCALATE_TO_ANALYST,MONITOR_CARD,FILE_REPORT,MONITOR_CONNECTED_CARDS"
+```
+
+> "The case is written back with queryable attributes and linked to its transactions, its
+> card, the cards it implicated, the device profile it named, and the prior cases it cited.
+> The next investigation finds it by traversal."
+
+## 3:35–4:00 — Measurement, honestly
+
+Show the evaluation view.
+
+> "On two hundred October closed cases, the bank's score alone gets 27 right. Trace gets
+> 111 of the 139 it's willing to decide. Our first hand-tuned version got zero out of forty
+> — it was pointed the wrong way. That's the whole lesson: a valid JSON file and a
+> good-looking interface tell you nothing about whether the investigation is right."
 
 ## Recording checklist
 
 - Hide credentials and unrelated desktop content.
-- Use the actual running build; do not fabricate service status or results.
-- Keep resolution sufficient to read evidence and approval badges.
-- Separate live investigation from replay.
-- Keep the final recording between three and five minutes.
+- Use the actual running build. Do not fabricate service status or results.
+- Keep resolution high enough to read evidence references and approval badges.
+- Say "simulated" out loud wherever a customer reply is shown.
+- Three to five minutes.

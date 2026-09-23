@@ -2180,3 +2180,31 @@ td small {
 .evidence-list small {
   font-size: 9px;
 }
+
+/* Weighted evidence findings: the probability broken into the claims behind it. */
+.findings-breakdown {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+.finding-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 13px;
+}
+.finding-name {
+  color: var(--muted);
+}
+.finding-weight {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.finding-weight.up {
+  color: var(--amber);
+}
+.finding-weight.down {
+  color: var(--green);
+}

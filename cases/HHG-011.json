@@ -1,0 +1,206 @@
+{
+  "case_id": "HHG-011",
+  "case": {
+    "status": "closed_fraud",
+    "verdict": "fraud",
+    "fraud_probability": 0.93,
+    "pattern": "card_not_present_new_device",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3583348",
+      "3583368"
+    ],
+    "first_suspicious_txn_id": "3583348",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 165.87,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.39. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3583368"
+        ]
+      },
+      {
+        "claim": "The customer has 300 prior transactions, median amount $28.71. The flagged $131.30 is 4.6x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3583368",
+          "3564459",
+          "3564334",
+          "3564112",
+          "3564030",
+          "3564014",
+          "3562880"
+        ]
+      },
+      {
+        "claim": "Card C11923-K2 carried 64 transaction(s) in the 48 hours to the alert (32 in the last 24). Its own prior 30 days average 99.7 per 48 hours, so this window runs -35.7 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3578405",
+          "3578451",
+          "3578471",
+          "3578475",
+          "3578483",
+          "3578486",
+          "3578491",
+          "3578496",
+          "3578506",
+          "3578817",
+          "3578995",
+          "3578997"
+        ]
+      },
+      {
+        "claim": "The identity record marks this device as New for the account (id_15 = New). This is the single strongest counter-indicator in the closed cases: the cleared alerts are dominated by cardholders confirming a purchase from a new phone. A new device alone does not support a block.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:identity_device_status",
+        "entity_ids": [
+          "3583368"
+        ]
+      },
+      {
+        "claim": "Activity on this card accelerated: 32 transaction(s) in 24 hours against a 99.7-per-48-hour baseline.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3578405",
+          "3578451",
+          "3578471",
+          "3578475",
+          "3578483",
+          "3578486",
+          "3578491",
+          "3578496",
+          "3578506",
+          "3578817"
+        ]
+      },
+      {
+        "claim": "The 48-hour window holds 64 transactions on this card.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3578405",
+          "3578451",
+          "3578471",
+          "3578475",
+          "3578483",
+          "3578486",
+          "3578491",
+          "3578496",
+          "3578506",
+          "3578817"
+        ]
+      },
+      {
+        "claim": "Retrieved 3 confirmed-fraud and 1 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-5350",
+          "CC-4743",
+          "CC-4501",
+          "CC-3960"
+        ]
+      },
+      {
+        "claim": "The same device profile appears on 2 other customer(s) in the prior 30 days. A DeviceProfile is DeviceInfo, OS, browser and screen combined; common handsets collide, so sharing one is a lead, not identity.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:device_neighbors",
+        "entity_ids": [
+          "3582750",
+          "3582730"
+        ]
+      },
+      {
+        "claim": "The cardholder states they did not make the flagged transaction. Under policy R2 a denial is direct evidence, and the closed-case record shows customer-reported alerts confirmed as fraud far more often than model-scored ones.",
+        "source": "customer",
+        "ref": "case_pack:HHG-011",
+        "entity_ids": [
+          "3583368"
+        ]
+      },
+      {
+        "claim": "Case CC-0696: model scored a $13.68 transaction at 0.83. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0696",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-1313: model scored a $100.08 transaction at 0.87. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-1313",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-1383: model scored a $99.98 transaction at 0.91. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-1383",
+        "entity_ids": []
+      },
+      {
+        "claim": "The cardholder's own report is the denial: they state they did not make the flagged transaction. Policy R2 treats that as direct evidence, so no verification was requested for something already reported.",
+        "source": "customer",
+        "ref": "case_pack:HHG-011",
+        "entity_ids": [
+          "3583368"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-5350",
+      "CC-4743",
+      "CC-4501",
+      "CC-3960"
+    ],
+    "summary": "Alert HHG-011 opened on 2016-12-29 from a customer report on transaction 3583368 ($131.30, online) for card C11923-K2. The findings that moved the assessment most: The identity record marks this device as New for the account (id_15 = New); The cardholder states they did not make the flagged transaction. Card activity ran at 64 transaction(s) in 48 hours against a 99.71 baseline for this card. 4 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 3 of them confirmed fraud. The assessment is fraud at probability 0.93, scoped to 2 transaction(s) and $165.87 exposure, matching card-not-present fraud from a device new to the account.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-011"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: recorded customer denial; recommend blocking this card with the appropriate approval."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "BLOCK_CARD",
+        "route": "L1",
+        "reason": "R2: recorded customer denial; recommend blocking this card with the appropriate approval."
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed fraud at 0.93 with $165.87 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under policy 6: probability 0.93 is past the threshold on 3 independent findings. Further graph traversal would add detail, not change the decision.",
+  "tool_calls": 19,
+  "tokens": 1107,
+  "latency_s": 9.337
+}

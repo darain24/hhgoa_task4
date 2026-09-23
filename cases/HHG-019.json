@@ -1,0 +1,167 @@
+{
+  "case_id": "HHG-019",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.07,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.90. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3503878"
+        ]
+      },
+      {
+        "claim": "The customer has 217 prior transactions, median amount $116.92. The flagged $99.92 is 0.9x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3503878",
+          "3481019",
+          "3467489",
+          "3466072",
+          "3458424",
+          "3457703",
+          "3457587"
+        ]
+      },
+      {
+        "claim": "Card C07987-K2 carried 2 transaction(s) in the 48 hours to the alert (1 in the last 24). Its own prior 30 days average 1.8 per 48 hours, so this window runs +0.2 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3499109",
+          "3503878"
+        ]
+      },
+      {
+        "claim": "The identity record marks this device as New for the account (id_15 = New). This is the single strongest counter-indicator in the closed cases: the cleared alerts are dominated by cardholders confirming a purchase from a new phone. A new device alone does not support a block.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:identity_device_status",
+        "entity_ids": [
+          "3503878"
+        ]
+      },
+      {
+        "claim": "Retrieved 4 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-5430",
+          "CC-5221",
+          "CC-5248",
+          "CC-5037"
+        ]
+      },
+      {
+        "claim": "The same device profile appears on 2 other customer(s) in the prior 30 days. A DeviceProfile is DeviceInfo, OS, browser and screen combined; common handsets collide, so sharing one is a lead, not identity.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:device_neighbors",
+        "entity_ids": [
+          "3503988",
+          "3497738"
+        ]
+      },
+      {
+        "claim": "2 earlier transactions match this amount and product code at roughly monthly spacing. Merchant identity is not in the dataset, so this is a recurring-charge hypothesis, not a confirmed one.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:recurring_amount",
+        "entity_ids": [
+          "3503878",
+          "3419333",
+          "3344081"
+        ]
+      },
+      {
+        "claim": "Every transaction carries a `risk_score` between 0 and 1 from the bank's detection model. The model is useful and imperfect: many high scores are legitimate, and some fraud scores low. A score is a reason to look, never a verdict. The only confirmed outcomes are in the closed cases.",
+        "source": "document",
+        "ref": "tigergraph:vector:POLICY-3",
+        "entity_ids": []
+      },
+      {
+        "claim": "**R4. No reply within 24 hours.** Recommend `MONITOR_CARD` and `DECLINE_TRANSACTION` for pending authorizations. Escalate if exposure exceeds $500.",
+        "source": "document",
+        "ref": "tigergraph:vector:POLICY-14",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0034: model scored a $1,486.49 transaction at 0.89. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0034",
+        "entity_ids": []
+      },
+      {
+        "claim": "SIMULATED verification response: the cardholder confirms they made the transaction. The organizer supplies no customer replies; this is an assumption recorded in evidence_requests, not a customer contact.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "3503878"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-5430",
+      "CC-5221",
+      "CC-5248",
+      "CC-5037"
+    ],
+    "summary": "Alert HHG-019 opened on 2016-12-01 from a risk score on transaction 3503878 ($99.92, online) for card C07987-K2. The findings that moved the assessment most: The identity record marks this device as New for the account (id_15 = New). Card activity ran at 2 transaction(s) in 48 hours against a 1.79 baseline for this card. 4 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 4 of them confirmed fraud. The evidence supports legitimate activity at probability 0.07; no transaction is treated as part of a fraud episode. The simulated reply was that the cardholder confirms they made the transaction, which is recorded as an assumption, not a customer contact.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-019"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 96,
+      "assumed_response": "SIMULATED (confirmed): the cardholder confirms they made the transaction. Assessed fraud probability is 0.11 and the counter-evidence matches the shapes the bank's own cleared cases describe (a new handset, a trip, or an unusually large but intended purchase), so the cardholder is assumed to confirm the transaction."
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: available signals do not establish fraud; seek verification before blocking."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: simulated customer confirmation settles the transaction question."
+      }
+    ],
+    "what_changed": "The simulated reply (the cardholder confirms they made the transaction) moved the assessed probability to 0.07, which changes the policy branch that applies and therefore the recommended actions."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed legitimate at 0.07 with $0.00 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under policy 6: the verification response settles the question. Probability moved to 0.07 and the actions below follow directly from it.",
+  "tool_calls": 21,
+  "tokens": 1046,
+  "latency_s": 7.791
+}

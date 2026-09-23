@@ -819,8 +819,47 @@ export default function App() {
                               />
                             </div>
                             <p className="calibration-note">
-                              Heuristic estimate · not calibrated
+                              Fitted on closed cases · holdout AUC 0.849
                             </p>
+                            {detail.detail?.assessment?.findings?.length ? (
+                              <div className="findings-breakdown">
+                                <div className="section-label">
+                                  WHY THIS PROBABILITY
+                                </div>
+                                {detail.detail.assessment.findings
+                                  .slice()
+                                  .sort(
+                                    (a: Dict, b: Dict) =>
+                                      Math.abs(b.weight) - Math.abs(a.weight),
+                                  )
+                                  .map((f: Dict) => (
+                                    <div className="finding-row" key={f.name}>
+                                      <span className="finding-name">
+                                        {human(f.name)}
+                                      </span>
+                                      <span
+                                        className={
+                                          f.weight >= 0
+                                            ? "finding-weight up"
+                                            : "finding-weight down"
+                                        }
+                                      >
+                                        {f.weight >= 0 ? "+" : ""}
+                                        {f.weight.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                <p className="calibration-note">
+                                  Log-odds contributions, summed with a{" "}
+                                  {detail.detail.assessment.log_odds >= 0
+                                    ? "+"
+                                    : ""}
+                                  {detail.detail.assessment.log_odds} total. The
+                                  bank&rsquo;s own risk score contributes nothing
+                                  by design.
+                                </p>
+                              </div>
+                            ) : null}
                             <div className="exposure-row">
                               <span>Potential exposure</span>
                               <b>{money(record.exposure_usd)}</b>

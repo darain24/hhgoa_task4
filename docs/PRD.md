@@ -10,12 +10,12 @@ Primary audience: fraud analysts and hackathon judges. Constraints: no paid serv
 
 | Criterion | Weight | Implementation |
 |---|---:|---|
-| Investigation accuracy | 25% | Temporal evidence, customer baselines, identity signals, episode scoping, connected profiles and prior case outcomes |
+| Investigation accuracy | 25% | Weighted evidence findings fitted on the organizer's closed cases and held out (ROC-AUC 0.849); episode scope validated against 250 confirmed episodes; the bank's risk score excluded as a selection artefact |
 | Next best action | 25% | Policy-controlled actions, initial/final recommendations, explicit verification and escalation |
 | Explainability | 10% | Provenance, evidence graph, supporting/contradicting findings, short case summaries |
 | Agentic engineering | 15% | Stateful workflow, bounded local-model tool selection, durable events, idempotent evidence/approval operations |
 | Innovation | 15% | Decision-changing evidence scenarios, undocumented-pattern corroboration, candidate discovery, replay |
-| Demo completeness | 10% | Real-data workbench and reproducible exports; live TigerGraph remains an integration gate |
+| Demo completeness | 10% | Real-data workbench against a live local TigerGraph, reproducible exports, recorded verification |
 
 ## Required workflow
 

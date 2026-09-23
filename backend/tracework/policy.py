@@ -127,10 +127,21 @@ def decide(s: Situation) -> list[Action]:
     elif not s.card_testing:
         add(
             "ESCALATE_TO_ANALYST",
-            "§2 and R8: review the evidence-supported fraud finding and any containment action.",
+            "§2 and R8: an evidence-supported fraud finding without a cardholder "
+            "denial needs a human before any action with customer impact.",
+        )
+        add(
+            "MONITOR_CARD",
+            "§1: raise monitoring sensitivity while the analyst reviews. This "
+            "contains further exposure at no customer impact, which blocking a card "
+            "on behavioural evidence alone would not.",
         )
     strongly_suspected = s.verdict == "fraud" or s.response == "denied"
-    if strongly_suspected and (s.exposure > 1000 or s.shared_fraud or s.undocumented):
+    # R9 requires coordinated or repeated abuse *across customers* before a report,
+    # not merely activity that matches none of the five documented typologies. An
+    # unmatched single-account episode gets a case and an analyst, not a filing.
+    reportable = s.exposure > 1000 or s.shared_fraud or (s.undocumented and s.shared_fraud)
+    if strongly_suspected and reportable:
         add("CREATE_CASE", "§3a: every report must have an internal case.")
         add(
             "FILE_REPORT",
@@ -144,7 +155,7 @@ def decide(s: Situation) -> list[Action]:
     if s.undocumented and strongly_suspected:
         add(
             "ESCALATE_TO_ANALYST",
-            "R9: coordinated abuse does not match a documented pattern.",
+            "R9: activity matches no documented pattern and needs a human read.",
         )
     return result
 

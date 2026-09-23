@@ -32,13 +32,32 @@ def packet():
         "timeline": [f],
         "neighbors": [],
         "history": [],
+        "card48": [f],
+        "cust48": [f],
+        "prior30": 14,
+        "region_run": [f],
     }
 
 
 def test_high_risk_score_is_not_a_verdict():
+    """A 0.95 model score with nothing behind it must not reach a fraud verdict,
+    and the score must not contribute any weight to the assessment."""
+    from tracework.analysis import WEIGHTS
+
     a = assess(packet(), {"trigger_type": "risk_score", "case_id": "x"})
-    assert a["verdict"] == "legitimate"
+    assert a["verdict"] != "fraud"
     assert a["probability"] < 0.95
+    assert "risk" not in WEIGHTS
+    assert not any(x["name"] == "risk" for x in a["findings"])
+
+
+def test_score_alone_cannot_move_the_assessment():
+    """Two identical cases differing only in the bank's score assess identically."""
+    low, high = packet(), packet()
+    low["flagged"] = {**low["flagged"], "risk": 0.02}
+    high["flagged"] = {**high["flagged"], "risk": 0.99}
+    trigger = {"trigger_type": "risk_score", "case_id": "x"}
+    assert assess(low, trigger)["probability"] == assess(high, trigger)["probability"]
 
 
 def test_shared_profile_is_not_a_fraud_ring():

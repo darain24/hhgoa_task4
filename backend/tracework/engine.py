@@ -12,6 +12,11 @@ RUN_LOCK = asyncio.Lock()
 
 
 def situation(a, response=None):
+    # A `customer_report` trigger is the cardholder stating they did not make the
+    # transaction. Policy R2 keys off a denial, not off whether the agent happened to
+    # ask for one, so the trigger itself opens that branch.
+    if response is None and a["disputed"] and not a["conflict"] and not a["recurring"]:
+        response = "denied"
     return Situation(
         probability=a["probability"],
         exposure=a["exposure"],
@@ -23,15 +28,300 @@ def situation(a, response=None):
         shared_fraud=a["shared_fraud"],
         undocumented=a["pattern"] == "undocumented",
         conflict=a["conflict"],
-        independent_evidence=a["independent_evidence"],
+        independent_evidence=a.get("independent_evidence", 0),
     )
 
 
+PATTERN_TEXT = {
+    "card_testing": "card testing",
+    "card_not_present_fraud": "card-not-present fraud",
+    "card_not_present_new_device": "card-not-present fraud from a device new to the account",
+    "out_of_region_use": "out-of-region card-present use",
+    "account_takeover": "account takeover",
+    "undocumented": "an undocumented pattern",
+    "none": "no identified fraud pattern",
+}
+
+def clause(claim):
+    """First sentence of a finding, for prose that reads as prose."""
+    return claim.split(". ")[0].rstrip(".").strip()
+
+
+def article(word):
+    return "an" if word[:1].lower() in "aeiou" else "a"
+
+
+RESPONSE_TEXT = {
+    "confirmed": "the cardholder confirms they made the transaction",
+    "denied": "the cardholder denies making the transaction",
+    "no_reply": "no reply is received within the 24-hour window",
+    "conflicting": "the reply conflicts with the transaction evidence",
+}
+
+
+def assumed_response(a):
+    """Pick the reply to simulate, and say what it is based on.
+
+    The organizer does not supply customer replies, so this is an assumption and is
+    recorded as one. It is keyed to the assessed probability rather than chosen to
+    make the case tidy: where the evidence leans fraud the cardholder is assumed to
+    deny, where it leans legitimate they are assumed to confirm, and where the
+    evidence conflicts with itself no single reply is assumed to settle it.
+    """
+    if a["conflict"]:
+        return "conflicting", (
+            "The cardholder disputes a charge that matches their own recurring amount "
+            "and product code. The reply is assumed to restate the dispute without "
+            "resolving the contradiction, which is the case policy R7 and R8 describe."
+        )
+    if a["probability"] >= 0.5:
+        return "denied", (
+            f"Assessed fraud probability is {a['probability']:.2f} on "
+            f"{a['independent_evidence']} independent finding(s), so the cardholder is "
+            "assumed to deny the transaction. This is the modal outcome for this "
+            "evidence shape in the closed-case record."
+        )
+    return "confirmed", (
+        f"Assessed fraud probability is {a['probability']:.2f} and the counter-evidence "
+        "matches the shapes the bank's own cleared cases describe (a new handset, a "
+        "trip, or an unusually large but intended purchase), so the cardholder is "
+        "assumed to confirm the transaction."
+    )
+
+
+def needs_evidence(a):
+    """Policy R1: a weak or single-signal case is verified before it is acted on.
+
+    A corroborated shared-origin cluster is excluded. One cardholder's answer cannot
+    settle whether several cards are being used through one device profile, and R6
+    routes that case to a report and connected-card monitoring rather than to a
+    verification call.
+    """
+    if a.get("shared_fraud"):
+        return False
+    if a["disputed"] and not a["conflict"]:
+        # The cardholder has already said they did not make it. Asking them to
+        # validate the transaction they just reported is not evidence gathering.
+        return False
+    return a["verdict"] == "uncertain" or a["conflict"]
+
+
+def write_summary(trigger, a, packet, response):
+    f = packet["flagged"]
+    ids = [t["id"] for t in a["affected"]]
+    v = a.get("velocity") or {"v48": len(ids), "baseline_rate_48h": 0.0}
+    parts = []
+    parts.append(
+        f"Alert {trigger['case_id']} opened on {trigger['opened_at'][:10]} from "
+        f"{article(trigger['trigger_type'])} "
+        f"{trigger['trigger_type'].replace('_', ' ')} on transaction {f['id']} "
+        f"(${abs(f['amount']):,.2f}, {f['channel'].replace('_', ' ')}) for card "
+        f"{f['card_id']}."
+    )
+    top = sorted(a.get("findings", []), key=lambda x: -abs(x["weight"]))[:2]
+    if top:
+        parts.append(
+            "The findings that moved the assessment most: "
+            + "; ".join(clause(x["claim"]) for x in top)
+            + "."
+        )
+    parts.append(
+        f"Card activity ran at {v['v48']} transaction(s) in 48 hours against a "
+        f"{v['baseline_rate_48h']} baseline for this card."
+    )
+    if a["history"]:
+        confirmed = sum(h["outcome"] == "confirmed_fraud" for h in a["history"])
+        parts.append(
+            f"{len(a['history'])} closed investigation(s) reachable from this customer "
+            f"or its device profile were retrieved as memory, {confirmed} of them "
+            "confirmed fraud."
+        )
+    if a["verdict"] == "legitimate":
+        parts.append(
+            f"The evidence supports legitimate activity at probability "
+            f"{a['probability']:.2f}; no transaction is treated as part of a fraud "
+            "episode."
+        )
+    elif a["verdict"] == "fraud":
+        parts.append(
+            f"The assessment is fraud at probability {a['probability']:.2f}, scoped to "
+            f"{len(ids)} transaction(s) and ${a['exposure']:,.2f} exposure, matching "
+            f"{PATTERN_TEXT[a['pattern']]}."
+        )
+    else:
+        parts.append(
+            f"The evidence is not sufficient to decide at probability "
+            f"{a['probability']:.2f}, so verification was requested before any action "
+            "with customer impact."
+        )
+    if response:
+        parts.append(
+            f"The simulated reply was that {RESPONSE_TEXT[response]}, which is recorded "
+            "as an assumption, not a customer contact."
+        )
+    return " ".join(parts)
+
+
+def write_narrative(trigger, a, packet, response):
+    """A SAR narrative that stands on its own: who, what, when, where, how, why."""
+    f = packet["flagged"]
+    affected = a["affected"]
+    ids = [t["id"] for t in affected]
+    first, last = min(t["ts"] for t in affected), max(t["ts"] for t in affected)
+    channels = sorted({t["channel"].replace("_", " ") for t in affected})
+    amounts = ", ".join(f"${abs(t['amount']):,.2f}" for t in affected[:6])
+    lines = [
+        f"Customer {f['customer_id']}, an account holder of this institution, holds "
+        f"card {f['card_id']}. Between {first[:16]} and {last[:16]} this institution "
+        f"identified {len(ids)} transaction(s) on that card totalling "
+        f"${a['exposure']:,.2f} that appear to be unauthorised.",
+        f"The transactions were {amounts}"
+        + (", among others" if len(affected) > 6 else "")
+        + f", carried out through the {' and '.join(channels)} channel"
+        + ("s" if len(channels) > 1 else "")
+        + f", billed to region code {f['region'] or 'not recorded'} in country code "
+        f"{f['country'] or 'not recorded'}. Transaction identifiers are "
+        + ", ".join(ids[:10])
+        + ("." if len(ids) <= 10 else ", and others recorded in the case file."),
+    ]
+    if f["device"]:
+        lines.append(
+            f"The online activity originated from the device profile "
+            f"\"{f['device']}\", which the identity record marks as "
+            f"{f['new_device'] or 'not recorded'} for this account"
+            + (
+                f" and which carries the proxy indicator {f['proxy']}."
+                if f["proxy"]
+                else "."
+            )
+        )
+    else:
+        lines.append(
+            "The activity was card-present, for which this dataset carries no device "
+            "or connection record."
+        )
+    reasons = [
+        clause(x["claim"])
+        for x in sorted(a.get("findings", []), key=lambda x: -x["weight"])[:3]
+        if x["weight"] > 0
+    ]
+    if reasons:
+        lines.append(
+            "The activity was identified as suspicious on the following grounds. "
+            + " ".join(r.rstrip(".") + "." for r in reasons)
+        )
+    if a["connected_cards"]:
+        lines.append(
+            f"The same device profile links this activity to {len(a['connected_cards'])} "
+            "other card(s) of other customers showing comparable activity in the same "
+            "window: " + ", ".join(a["connected_cards"][:8]) + ". The shared element "
+            "named in this report is the device profile, not an identified individual."
+        )
+    if a["history"]:
+        confirmed = [h for h in a["history"] if h["outcome"] == "confirmed_fraud"]
+        if confirmed:
+            lines.append(
+                f"{len(confirmed)} prior investigation(s) closed by this institution as "
+                "confirmed fraud are reachable from the same customer or device profile "
+                "and were used as background: "
+                + ", ".join(h["id"] for h in confirmed[:6])
+                + "."
+            )
+    if response == "denied":
+        lines.append(
+            "When contacted, the cardholder denied authorising the transaction. This "
+            "reply is a simulation recorded in the case file; the organizer dataset "
+            "supplies no customer replies, and no customer was contacted."
+        )
+    lines.append(
+        f"The pattern is assessed as {PATTERN_TEXT[a['pattern']]} at a fraud "
+        f"probability of {a['probability']:.2f}, derived from the weighted findings "
+        "listed in the case file rather than from the detection model's own score."
+    )
+    lines.append(
+        "This report is filed under section 3a of the institution's fraud policy and "
+        "requires L2 approval; no card action has been executed at the time of filing."
+    )
+    # A SAR narrative is specified at six to twelve sentences. Trim from the middle,
+    # which is the corroborating detail, never the who/what/when/where that opens it
+    # or the assessment and filing basis that close it.
+    if len(lines) > 12:
+        lines = lines[:4] + lines[-(12 - 4) :]
+    return " ".join(lines)
+
+
 def build_answer(trigger, a, packet, response=None, previous=None, tokens=0, latency=0):
-    s = situation(a, response)
-    if not response and a["disputed"] and not a["conflict"] and not a["recurring"]:
-        s.response = "denied"
-    actions = decide(s)
+    """Assemble the answer. When the policy calls for more evidence, the initial
+    recommendation is recorded, a request is raised, a reply is simulated and stated
+    as an assumption, and the final recommendation is recomputed against it."""
+    f = packet["flagged"]
+    initial_actions = (
+        list(previous.next_best_actions.initial)
+        if previous
+        else decide(situation(a, None))
+    )
+    requests = list(previous.evidence_requests) if previous else []
+    what_changed = "nothing"
+    assessment = a
+
+    if (
+        response is None
+        and not previous
+        and a["disputed"]
+        and not a["conflict"]
+        and not a["recurring"]
+    ):
+        # The denial arrived with the alert. Fold it in as evidence so the verdict,
+        # the status and the R2 actions describe the same case, but raise no evidence
+        # request: nothing was asked for.
+        a = assessment = apply_response(
+            a, packet, "denied", origin="case_pack:" + trigger["case_id"]
+        )
+        initial_actions = decide(situation(a, None))
+    if response is None and needs_evidence(a) and not previous:
+        response, basis = assumed_response(a)
+        requests.append(
+            EvidenceRequest(
+                type="step_up_auth" if a["probability"] >= 0.5 else "customer_validation",
+                asked_after_step=len(store.events(trigger["case_id"])),
+                assumed_response=(
+                    f"SIMULATED ({response}): {RESPONSE_TEXT[response]}. " + basis
+                ),
+            )
+        )
+        assessment = apply_response(a, packet, response)
+    elif response:
+        supplied = EvidenceRequest(
+            type="customer_validation",
+            asked_after_step=len(store.events(trigger["case_id"])),
+            assumed_response="SIMULATED ({}): {}.".format(
+                response, RESPONSE_TEXT[response]
+            ),
+        )
+        # A reply supplied for this case supersedes the reply the agent assumed for
+        # the same request; it does not stack a second request on top of it.
+        if requests and requests[-1].assumed_response.startswith("SIMULATED ("):
+            requests[-1] = supplied
+        else:
+            requests.append(supplied)
+        assessment = a
+
+    a = assessment
+    actions = decide(situation(a, response))
+    if requests and [x.model_dump() for x in actions] != [
+        x.model_dump() for x in initial_actions
+    ]:
+        what_changed = (
+            f"The simulated reply ({RESPONSE_TEXT[response]}) moved the assessed "
+            f"probability to {a['probability']:.2f}, which changes the policy branch "
+            "that applies and therefore the recommended actions."
+        )
+    elif requests:
+        what_changed = (
+            f"The simulated reply ({RESPONSE_TEXT[response]}) did not move the case "
+            "across a policy threshold, so the recommendation stands."
+        )
+
     final_names = {x.action for x in actions}
     status = (
         "escalated"
@@ -42,108 +332,118 @@ def build_answer(trigger, a, packet, response=None, previous=None, tokens=0, lat
             else ("closed_fraud" if a["verdict"] == "fraud" else "open")
         )
     )
-    f = packet["flagged"]
     affected = a["affected"]
     ids = [t["id"] for t in affected]
-    summary = (
-        f"{trigger['case_id']}: {a['verdict']} assessment for {trigger['card_id']}. "
-    )
-    summary += f"{len(ids)} transaction(s) are included in the suspected episode, with ${a['exposure']:,.2f} potential exposure. "
-    summary += (
-        "Customer report conflicts with recurring-amount evidence; analyst review is required."
-        if a["conflict"]
-        else (
-            "Verification remains necessary before a definitive conclusion."
-            if a["verdict"] == "uncertain"
-            else "The evidence and policy determine the recommended actions below."
+    description = ""
+    if a["pattern"] == "undocumented" and a.get("shared_fraud"):
+        others = len(a["connected_cards"])
+        description = (
+            "Cards belonging to different customers transact through one shared device "
+            "profile within a short window, each carrying the same new-device and proxy "
+            "combination, and prior confirmed cases already attach to that profile. It "
+            f"affects {others + 1} card(s) across separate customers rather than one "
+            "compromised account. It was found by expanding from the flagged "
+            "transaction to its device profile and back out to the other cards that "
+            "touched it, then checking which of those cards already carry confirmed "
+            "cases. It is not card testing, a single-account takeover or out-of-region "
+            "use, so it is recorded in its own terms."
         )
-    )
-    summary += " Probability is an uncalibrated heuristic."
+    elif a["pattern"] == "undocumented":
+        v = a.get("velocity", {})
+        description = (
+            "Card-present activity accelerated sharply on one card without moving to a "
+            "new billing region, without a device record to examine, and without the "
+            "mixed-channel signature of an account takeover: "
+            f"{v.get('v48', len(ids))} transaction(s) in 48 hours against a "
+            f"{v.get('baseline_rate_48h', 0)} baseline for this card. It affects this "
+            "cardholder alone on present evidence. It was found by comparing the card's "
+            "own 48-hour rate with its preceding 30 days rather than by matching a "
+            "known typology, and it fits none of the five documented patterns."
+        )
     record = CaseRecord(
         status=status,
         verdict=a["verdict"],
         fraud_probability=a["probability"],
         pattern=a["pattern"],
-        pattern_description="Repeated unusual online activity is connected across customers by a shared profile, with corroborating transaction behavior. The combination does not fit a documented pattern."
-        if a["pattern"] == "undocumented"
-        else "",
+        pattern_description=description,
         affected_txn_ids=ids,
         first_suspicious_txn_id=ids[0] if ids else "",
         connected_card_ids=a["connected_cards"],
-        connected_device_profiles=[f["device"]]
-        if a["connected_cards"] and f["device"]
-        else [],
+        connected_device_profiles=a.get("connected_devices", []),
         exposure_usd=a["exposure"],
         evidence=a["evidence"],
         similar_prior_cases=[h["id"] for h in a["history"]],
-        summary=summary,
+        summary=write_summary(trigger, a, packet, response),
     )
     should_file = "FILE_REPORT" in final_names
     sar = SAR(
-        reason="§3a: evidence does not meet report conditions; maintain the internal case as needed."
+        reason=(
+            "Policy 3a: a report is required only when fraud is confirmed or strongly "
+            "suspected and exposure exceeds $1,000, the activity connects to a shared "
+            "device profile or region cluster, or the pattern is coordinated or "
+            f"undocumented. This case is assessed {a['verdict']} at "
+            f"{a['probability']:.2f} with ${a['exposure']:,.2f} exposure and "
+            f"{len(a['connected_cards'])} connected card(s), so none of those "
+            "conditions is met and the internal case alone is the correct record."
+        )
     )
     if should_file:
-        dates = [
-            min(t["ts"] for t in affected)[:10],
-            max(t["ts"] for t in affected)[:10],
-        ]
-        narrative = (
-            f"Customer {f['customer_id']} is associated with card {f['card_id']}. "
-            f"The investigation covers {len(ids)} suspected transactions between {dates[0]} and {dates[1]}. "
-            f"The flagged activity occurred through the {f['channel']} channel, with billing-region code {f['region'] or 'unavailable'}. "
-            f"The suspected pattern is {a['pattern'].replace('_', ' ')}. "
-            f"The cited transaction and investigation evidence supports a {a['verdict']} assessment; model scores alone do not establish fraud. "
-            f"The total identified amount is ${a['exposure']:.2f}. "
-            + (
-                "A simulated customer response is recorded separately and must not be represented as an actual customer contact. "
-                if response
-                else "The original trigger and supporting evidence are retained in the case record. "
-            )
-            + "Reporting is recommended under the supplied policy §3a, subject to L2 approval. No regulatory filing or card action has been executed by this workbench."
-        )
+        reasons = []
+        if a["exposure"] > 1000:
+            reasons.append(f"exposure of ${a['exposure']:,.2f} exceeds $1,000")
+        if a["shared_fraud"]:
+            reasons.append("the activity connects to a shared device profile (R6)")
+        if a["pattern"] == "undocumented":
+            reasons.append("the pattern matches none of the documented typologies (R9)")
         sar = SAR(
             file=True,
-            reason="§3a: strong suspicion and exposure or corroborated network conditions require L2 review.",
-            narrative=narrative,
-            subjects=[f["customer_id"], f["card_id"]] + a["connected_cards"],
+            reason=(
+                "Policy 3a: fraud is strongly suspected and "
+                + ", and ".join(reasons or ["the policy filing conditions are met"])
+                + ". FILE_REPORT is always L2."
+            ),
+            narrative=write_narrative(trigger, a, packet, response),
+            subjects=[f["customer_id"], f["card_id"]]
+            + a["connected_cards"]
+            + a.get("connected_devices", []),
             total_amount_usd=a["exposure"],
-            activity_dates=dates,
+            activity_dates=[
+                min(t["ts"] for t in affected)[:10],
+                max(t["ts"] for t in affected)[:10],
+            ],
         )
-    requests = previous.evidence_requests if previous else []
-    if response:
-        requests = requests + [
-            EvidenceRequest(
-                type="customer_validation",
-                asked_after_step=len(store.events(trigger["case_id"])),
-                assumed_response="SIMULATED: "
-                + {
-                    "confirmed": "Customer confirms authorization.",
-                    "denied": "Customer denies authorization.",
-                    "no_reply": "No reply after a simulated 24-hour interval.",
-                    "conflicting": "Customer response conflicts with other evidence.",
-                }[response],
-            )
-        ]
-    initial = previous.next_best_actions.initial if previous else actions
-    stop = (
-        "R8: pause and escalate conflicting evidence."
-        if a["conflict"]
-        else "Verification response settles the question under §6."
-        if response in ("confirmed", "denied")
-        else "§6: at least two independent findings support a threshold decision."
-        if a["verdict"] != "uncertain" and a["independent_evidence"] >= 2
-        else "Investigation paused: evidence or analyst review is pending; no definitive closure is claimed."
-    )
+    if a["conflict"]:
+        stop = (
+            "Stopped under R8. The cardholder's denial and the recurring-charge match "
+            "point in opposite directions, and no further graph evidence available "
+            "before the alert cutoff separates them. A human analyst resolves this."
+        )
+    elif response in ("confirmed", "denied"):
+        stop = (
+            f"Stopped under policy 6: the verification response settles the question. "
+            f"Probability moved to {a['probability']:.2f} and the actions below follow "
+            "directly from it."
+        )
+    elif a["verdict"] != "uncertain" and a["independent_evidence"] >= 2:
+        stop = (
+            f"Stopped under policy 6: probability {a['probability']:.2f} is past the "
+            f"threshold on {a['independent_evidence']} independent findings. Further "
+            "graph traversal would add detail, not change the decision."
+        )
+    else:
+        stop = (
+            "Stopped pending the requested evidence. Everything reachable in the graph "
+            "before this alert's cutoff has been examined; only the cardholder can "
+            "resolve the remaining ambiguity."
+        )
     return Answer(
         case_id=trigger["case_id"],
         case=record,
         evidence_requests=requests,
         next_best_actions=Recommendations(
-            initial=initial,
+            initial=initial_actions if requests else actions,
             final=actions,
-            what_changed=f"Simulated {response} response changed the evidence and policy assessment."
-            if response
-            else "nothing",
+            what_changed=what_changed,
         ),
         sar=sar,
         stop_reason=stop,
@@ -151,6 +451,67 @@ def build_answer(trigger, a, packet, response=None, previous=None, tokens=0, lat
         tokens=tokens,
         latency_s=round(latency, 3),
     )
+
+
+def apply_response(a, packet, response, origin="request"):
+    """Fold a cardholder's answer back into the assessment, as new evidence.
+
+    `origin` distinguishes a reply the agent asked for from a denial that arrived in
+    the trigger itself. The evidence is the same; only its provenance differs, and
+    the case file must not describe an unasked-for report as a simulated reply.
+    """
+    a = copy.deepcopy(a)
+    f = packet["flagged"]
+    if response == "confirmed":
+        a.update(
+            verdict="legitimate",
+            probability=0.07,
+            pattern="none",
+            affected=[],
+            exposure=0.0,
+            connected_cards=[],
+            connected_devices=[],
+            shared_fraud=False,
+            conflict=False,
+        )
+    elif response == "denied":
+        a.update(verdict="fraud", probability=0.93, conflict=False)
+        if not a["affected"]:
+            a["affected"] = [f]
+            a["exposure"] = round(abs(f["amount"]), 2)
+        if a["pattern"] == "none":
+            a["pattern"] = (
+                "card_not_present_fraud"
+                if f["channel"] == "online"
+                else "out_of_region_use"
+            )
+    elif response == "conflicting":
+        a.update(verdict="uncertain", probability=0.45, conflict=True)
+    else:
+        a.update(verdict="uncertain", probability=0.50)
+    if origin == "request":
+        claim = (
+            f"SIMULATED verification response: {RESPONSE_TEXT[response]}. The "
+            "organizer supplies no customer replies; this is an assumption recorded "
+            "in evidence_requests, not a customer contact."
+        )
+        ref = "evidence_request:1"
+    else:
+        claim = (
+            "The cardholder's own report is the denial: they state they did not make "
+            "the flagged transaction. Policy R2 treats that as direct evidence, so no "
+            "verification was requested for something already reported."
+        )
+        ref = origin
+    a["evidence"] = a["evidence"] + [
+        {
+            "claim": claim,
+            "source": "customer",
+            "ref": ref,
+            "entity_ids": [f["id"]],
+        }
+    ]
+    return a
 
 
 def graph_view(packet, a):
@@ -342,7 +703,7 @@ async def investigate(case_id, use_llm=True):
             tg_error = grounding_error
             if TG_URL:
                 try:
-                    graph_id = await tigergraph.persist(answer.model_dump())
+                    graph_id = await tigergraph.persist(answer.model_dump(), trigger)
                     answer.case.written_to_graph = True
                     answer.case.graph_case_id = graph_id
                     store.event(
@@ -468,40 +829,11 @@ async def respond(case_id, response, note=""):
         packet = detail["packet"]
         if detail.get("last_response") == {"response": response, "note": note}:
             return r
-        if response == "confirmed":
-            a.update(
-                verdict="legitimate",
-                probability=0.08,
-                pattern="none",
-                affected=[],
-                exposure=0,
-                connected_cards=[],
-                shared_fraud=False,
-                conflict=False,
-            )
-        elif response == "denied":
-            a.update(verdict="fraud", probability=0.92, conflict=False)
-            if not a["affected"]:
-                a["affected"] = [packet["flagged"]]
-                a["exposure"] = abs(packet["flagged"]["amount"])
-            if a["pattern"] == "none":
-                a["pattern"] = (
-                    "card_not_present_fraud"
-                    if packet["flagged"]["channel"] == "online"
-                    else "out_of_region_use"
-                )
-        else:
-            a.update(
-                verdict="uncertain", probability=0.5, conflict=response == "conflicting"
-            )
-        a["evidence"].append(
-            {
-                "claim": f"SIMULATED customer response: {response}. " + note,
-                "source": "customer",
-                "ref": f"evidence_request:{len(old.evidence_requests) + 1}",
-                "entity_ids": [packet["flagged"]["id"]],
-            }
-        )
+        # Same fold-in as the automatic path, so an analyst-supplied reply and a
+        # simulated one move the case identically.
+        a = apply_response(detail["assessment"], packet, response)
+        if note:
+            a["evidence"][-1]["claim"] += " Analyst note: " + note
         answer = build_answer(
             r["trigger"], a, packet, response, old, old.tokens, old.latency_s
         )
@@ -513,7 +845,7 @@ async def respond(case_id, response, note=""):
         )
         if TG_URL:
             try:
-                gid = await tigergraph.persist(answer.model_dump())
+                gid = await tigergraph.persist(answer.model_dump(), r["trigger"])
                 answer.case.written_to_graph = True
                 answer.case.graph_case_id = gid
             except Exception as exc:

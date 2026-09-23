@@ -42,6 +42,9 @@ def fixture_case():
         "connected_cards": [],
         "evidence": [],
         "history": [],
+        "findings": [],
+        "connected_devices": [],
+        "velocity": {"v48": 1, "v24": 1, "baseline_rate_48h": 0.5, "excess": 0.5},
     }
     answer = engine.build_answer(trigger, a, packet)
     with store.connect() as c:

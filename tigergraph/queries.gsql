@@ -1,24 +1,44 @@
 USE GRAPH Trace
-CREATE QUERY trace_customer_window(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
+// Evidence retrieval for an investigation. Every query is cutoff-bounded: an
+// investigation may never see activity recorded after its alert opened.
+CREATE OR REPLACE QUERY trace_customer_window(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
   seeds = {Customer.*};
   customers = SELECT c FROM seeds:c WHERE c.id == customer_id;
   cards = SELECT k FROM customers:c -(OWNS:e)-> Card:k;
   txns = SELECT t FROM cards:k -(MADE:e)-> Transaction:t WHERE t.ts <= cutoff;
   PRINT txns;
 }
-CREATE QUERY trace_device_window(STRING device_id, STRING cutoff, STRING start_at) FOR GRAPH Trace {
+CREATE OR REPLACE QUERY trace_device_window(STRING device_id, STRING cutoff, STRING start_at) FOR GRAPH Trace {
   seeds = {DeviceProfile.*};
   devices = SELECT d FROM seeds:d WHERE d.id == device_id;
   txns = SELECT t FROM devices:d -(DEVICE_TXNS:e)-> Transaction:t WHERE t.ts <= cutoff AND t.ts >= start_at;
   PRINT txns;
 }
-CREATE QUERY trace_case_memory(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
+CREATE OR REPLACE QUERY trace_case_memory(STRING customer_id, STRING cutoff) FOR GRAPH Trace {
   seeds = {ClosedCase.*};
   cases = SELECT h FROM seeds:h WHERE h.customer_id == customer_id AND h.closed_at < cutoff;
   PRINT cases;
 }
-// Bounded breadth-first expansion on actual relationships, not score similarity.
-CREATE QUERY trace_network_bfs(SET<VERTEX<Card>> seeds, INT max_hops, STRING cutoff) FOR GRAPH Trace {
+// Case memory written by this agent: prior investigations reachable from the same
+// card or the same device profile. This is what makes a closed case findable later.
+CREATE OR REPLACE QUERY trace_prior_investigations(STRING card_id, STRING device_id, STRING cutoff) FOR GRAPH Trace {
+  SetAccum<VERTEX<Investigation>> @@found;
+  cards = {Card.*};
+  seedCard = SELECT k FROM cards:k WHERE k.id == card_id;
+  byCard = SELECT i FROM seedCard:k -(CARD_INVESTIGATIONS:e)-> Investigation:i
+    WHERE i.opened_at < cutoff ACCUM @@found += i;
+  linked = SELECT i FROM seedCard:k -(LINKED_INVESTIGATIONS:e)-> Investigation:i
+    WHERE i.opened_at < cutoff ACCUM @@found += i;
+  devices = {DeviceProfile.*};
+  dev = SELECT d FROM devices:d WHERE d.id == device_id;
+  byDevice = SELECT i FROM dev:d -(DEVICE_INVESTIGATIONS:e)-> Investigation:i
+    WHERE i.opened_at < cutoff ACCUM @@found += i;
+  result = @@found;
+  PRINT result;
+}
+// Bounded breadth-first expansion over actual shared-device relationships, not score
+// similarity. Answers "which other cards touched this device profile before the cutoff".
+CREATE OR REPLACE QUERY trace_network_bfs(SET<VERTEX<Card>> seeds, INT max_hops, STRING cutoff) FOR GRAPH Trace {
   SetAccum<VERTEX> @@visited;
   frontier = seeds;
   frontier = SELECT s FROM frontier:s ACCUM @@visited += s;
@@ -32,4 +52,6 @@ CREATE QUERY trace_network_bfs(SET<VERTEX<Card>> seeds, INT max_hops, STRING cut
   END;
   PRINT @@visited;
 }
-INSTALL QUERY trace_customer_window, trace_device_window, trace_case_memory, trace_network_bfs
+// INSTALL is issued per query by scripts/provision_tigergraph.py. Installing all five
+// in one job compiles them together and exhausts memory on a small Community Edition
+// container; one at a time keeps the peak within a 4 GB Docker VM.

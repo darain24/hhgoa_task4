@@ -85,6 +85,21 @@ def test_recurring_dispute_no_block():
     assert "BLOCK_CARD" not in n
 
 
-def test_undocumented_escalates():
+def test_undocumented_alone_gets_a_case_not_a_report():
+    """R9 conditions its report on 'coordinated or repeated abuse across customers'.
+    An unmatched single-account episode under the reporting threshold gets an internal
+    case and a human, which is also what 3a means by 'most cases never need a report'."""
     n = names(Situation(0.9, 100, "fraud", undocumented=True))
+    assert {"CREATE_CASE", "ESCALATE_TO_ANALYST"} <= n
+    assert "FILE_REPORT" not in n
+
+
+def test_undocumented_across_customers_is_reportable():
+    n = names(Situation(0.9, 100, "fraud", undocumented=True, shared_fraud=True))
     assert {"CREATE_CASE", "FILE_REPORT", "ESCALATE_TO_ANALYST"} <= n
+    assert "MONITOR_CONNECTED_CARDS" in n
+
+
+def test_undocumented_over_the_exposure_threshold_is_reportable():
+    n = names(Situation(0.9, 4000, "fraud", undocumented=True))
+    assert "FILE_REPORT" in n

@@ -1,5 +1,21 @@
-"""Transparent local evidence workbench. These are heuristics, not calibrated probabilities."""
+"""Evidence assessment.
 
+Each finding below carries a log-odds weight fitted on the organizer's own closed
+cases. Training used the 1,168 investigations opened before October 2016 whose
+flagged transaction scored at or above 0.82, because those are the alerts where the
+evidence, not the alert itself, had to decide; that subpopulation is 37.5% fraud,
+close to the benchmark's stated mix. Held out on the 278 October alerts of the same
+kind (48.2% fraud): ROC-AUC 0.849, accuracy 0.791, Brier 0.157. See
+`scripts/train_assessment.py --evidence` and `output/evidence-model.json`.
+
+The bank's risk score is deliberately NOT a feature. Inside the closed-case record it
+is almost perfectly inverted -- every cleared case scored at least 0.82 -- but that
+reflects which alerts the bank opened and closed, not which activity was fraud. The
+benchmark draws risk-score triggers from 0.52 to 0.90, so that inversion does not
+transfer and using it would be fitting the sampling frame.
+"""
+
+import json
 from collections import Counter
 from datetime import datetime, timedelta
 from statistics import median
@@ -97,6 +113,39 @@ def collect(trigger, include_memory=True):
                 history += [
                     h for h in candidates if h["id"] not in {x["id"] for x in history}
                 ][:4]
+    with store.connect() as c:
+        card48 = rows(
+            c,
+            "SELECT * FROM transactions WHERE card_id=? AND ts<=? AND ts>=? ORDER BY ts",
+            (f["card_id"], cutoff, (when - timedelta(hours=48)).isoformat(sep=" ")),
+        )
+        cust48 = rows(
+            c,
+            "SELECT * FROM transactions WHERE customer_id=? AND ts<=? AND ts>=? ORDER BY ts",
+            (f["customer_id"], cutoff, (when - timedelta(hours=48)).isoformat(sep=" ")),
+        )
+        # The card's own 30-day rhythm, so a burst is measured against this card
+        # rather than against an arbitrary constant.
+        prior30 = rows(
+            c,
+            "SELECT ts FROM transactions WHERE card_id=? AND ts<? AND ts>=?",
+            (
+                f["card_id"],
+                (when - timedelta(hours=48)).isoformat(sep=" "),
+                (when - timedelta(days=30)).isoformat(sep=" "),
+            ),
+        )
+        region_run = rows(
+            c,
+            "SELECT * FROM transactions WHERE card_id=? AND region=? AND ts<=? AND ts>=? ORDER BY ts",
+            (
+                f["card_id"],
+                f["region"],
+                cutoff,
+                (when - timedelta(days=14)).isoformat(sep=" "),
+            ),
+        )
+    calls += 4
     return {
         "flagged": f,
         "baseline": baseline,
@@ -104,6 +153,10 @@ def collect(trigger, include_memory=True):
         "neighbors": neighbors,
         "region_neighbors": region_neighbors,
         "history": history,
+        "card48": card48,
+        "cust48": cust48,
+        "prior30": len(prior30),
+        "region_run": region_run,
         "tool_calls": calls,
         "cutoff": cutoff,
         "source": "local_sqlite",
@@ -111,46 +164,86 @@ def collect(trigger, include_memory=True):
     }
 
 
+WEIGHTS = {
+    # Fitted log-odds. Positive is toward fraud.
+    "device_seen": 1.376,
+    "region_run": 1.255,
+    "burst": 0.353,
+    "heavy": 0.222,
+    "takeover": 0.040,
+    "isolated": 0.034,
+    "concurrent": -0.051,
+    "no_device": -0.300,
+    "thin_base": -0.388,
+    "one_off": -1.097,
+    "new_device": -3.011,
+}
+INTERCEPT = 0.920
+# Card testing is documented policy R5 but appears in only 16 of 5,565 closed cases,
+# too few to fit. It is applied as a policy rule with a fixed strong weight instead.
+TESTING_WEIGHT = 2.5
+MODEL_VERSION = "evidence-v1"
+
+
+def logistic(x):
+    if x < -40:
+        return 0.0
+    if x > 40:
+        return 1.0
+    import math
+
+    return 1 / (1 + math.exp(-x))
+
+
 def assess(packet, trigger):
     f = packet["flagged"]
     baseline = packet["baseline"]
+    card48 = packet.get("card48", [])
+    cust48 = packet.get("cust48", [])
+    when = dt(f["ts"])
     same = [t for t in packet["timeline"] if t["card_id"] == f["card_id"]]
     evidence = []
     support = []
     counter = []
-    groups = set()
-    p = 0.35
-    pattern = "none"
-    affected = []
-    conflict = False
+    findings = []
 
-    def ev(claim, ref, ids, side="support", group="behavior"):
+    def ev(claim, ref, ids, side="support", weight=0.0, name=""):
+        """One finding: a claim an analyst can check, the query it came from, the
+        entities it rests on, and the log-odds it contributed."""
         evidence.append(
             {
                 "claim": claim,
                 "source": "external",
                 "ref": "local_sqlite:" + ref,
-                "entity_ids": ids,
+                "entity_ids": [str(i) for i in ids],
             }
         )
         (support if side == "support" else counter).append(claim)
-        if side == "support":
-            groups.add(group)
+        if name:
+            findings.append(
+                {"name": name, "weight": round(weight, 3), "claim": claim, "ref": ref}
+            )
 
-    ev(
-        f"Organizer model risk score is {f['risk']:.2f}; this is an alert input, not a fraud verdict.",
-        "flagged_transaction",
-        [f["id"]],
-        "counter",
-    )
     amount_median = median([abs(t["amount"]) for t in baseline]) if baseline else None
-    typical = bool(amount_median and abs(f["amount"]) <= max(20, amount_median * 1.8))
     regions = {t["region"] for t in baseline if t["region"]}
-    products = {t["product"] for t in baseline}
+    devices_seen = {t["device"] for t in baseline if t["device"]}
+    amt_ratio = (abs(f["amount"]) / amount_median) if amount_median else 1.0
+    rate48 = packet.get("prior30", 0) / 14.0
+    v48 = len(card48)
+    v24 = len([t for t in card48 if when - dt(t["ts"]) <= timedelta(hours=24)])
+    excess = v48 - rate48
+    home_concurrent = len(
+        [t for t in cust48 if t["region"] in regions and t["region"] != f["region"]]
+    )
+    region_run = packet.get("region_run", [])
+    region_days = len({t["ts"][:10] for t in region_run})
+    flags = json.loads(f["match_flags"])
+    mF = sum(v == "F" for v in flags.values())
+    mixed = len({t["channel"] for t in card48}) > 1
     hour = [
         t
         for t in same
-        if timedelta(0) <= dt(f["ts"]) - dt(t["ts"]) <= timedelta(hours=1)
+        if timedelta(0) <= when - dt(t["ts"]) <= timedelta(hours=1)
     ]
     tiny = [
         t
@@ -162,167 +255,205 @@ def assess(packet, trigger):
         and f["channel"] == "online"
         and abs(f["amount"]) > max(abs(t["amount"]) for t in tiny)
     )
-    recent = [
-        t
-        for t in same
-        if timedelta(0) <= dt(f["ts"]) - dt(t["ts"]) <= timedelta(hours=48)
-    ]
-    online = [t for t in recent if t["channel"] == "online"]
     new_device = f["new_device"] == "New"
-    proxy = bool(f["proxy"])
-    recurring_matches = [
-        t
-        for t in baseline
-        if abs(abs(t["amount"]) - abs(f["amount"]))
-        <= max(0.10, abs(f["amount"]) * 0.015)
-        and 25 <= (dt(f["ts"]) - dt(t["ts"])).days <= 100
-        and t["product"] == f["product"]
-    ]
-    recurring = len(recurring_matches) >= 2
-    if baseline:
+    device_seen = f["new_device"] == "Found"
+    no_device = not f["device"] and f["channel"] == "in_person"
+    isolated = v48 <= 1
+    one_off = amt_ratio >= 3 and v48 <= 2
+    thin_base = len(baseline) < 5
+    burst = v24 >= 4 or excess >= 3
+    heavy = v48 >= 8
+    concurrent = home_concurrent >= 5
+    region_new = bool(regions) and f["region"] not in regions
+    region_streak = region_new and region_days >= 2
+
+    total = INTERCEPT
+    ev(
+        f"The bank's model scored the flagged transaction {f['risk']:.2f}. That is the "
+        "reason this alert exists, not a finding. It carries no weight in this "
+        "assessment: across the 5,565 closed cases every cleared alert scored 0.82 or "
+        "higher, so the score records which alerts were opened, not which were fraud.",
+        "flagged_transaction",
+        [f["id"]],
+        "counter",
+    )
+    if amount_median:
         ev(
-            f"Customer baseline contains {len(baseline)} transactions before the episode; median amount ${amount_median:.2f}.",
+            f"The customer has {len(baseline)} prior transactions, median amount "
+            f"${amount_median:,.2f}. The flagged ${abs(f['amount']):,.2f} is "
+            f"{amt_ratio:.1f}x that median.",
             "customer_baseline",
-            [t["id"] for t in baseline[:8]],
+            [f["id"]] + [t["id"] for t in baseline[:6]],
             "counter",
         )
-    else:
-        counter.append(
-            "Historical baseline is insufficient; absence of history is not evidence of fraud."
+    ev(
+        f"Card {f['card_id']} carried {v48} transaction(s) in the 48 hours to the alert "
+        f"({v24} in the last 24). Its own prior 30 days average {rate48:.1f} per 48 "
+        f"hours, so this window runs {excess:+.1f} against the card's own rhythm.",
+        "card_velocity",
+        [t["id"] for t in card48[:12]] or [f["id"]],
+        "support" if burst or heavy else "counter",
+    )
+
+    def score(flag, name, claim, ref, ids, side=None):
+        nonlocal total
+        if not flag:
+            return
+        w = WEIGHTS[name]
+        total += w
+        ev(claim, ref, ids, side or ("support" if w > 0 else "counter"), w, name)
+
+    score(
+        device_seen,
+        "device_seen",
+        "The identity record marks this device as already known to the account "
+        "(id_15 = Found). In the closed cases, activity from a recognised device is "
+        "where confirmed compromise concentrates; an unrecognised one is usually a "
+        "cardholder on a new handset.",
+        "identity_device_status",
+        [f["id"]],
+    )
+    ring_profile = (
+        bool(f["device"])
+        and len(
+            {
+                t["customer_id"]
+                for t in packet["neighbors"]
+                if t["new_device"] == "New" and t["proxy"]
+            }
         )
-    if typical:
-        p -= 0.12
+        >= 3
+    )
+    if new_device and ring_profile:
         ev(
-            "Flagged amount is within 1.8× the customer historical median (with a $20 floor).",
-            "amount_baseline",
-            [f["id"]] + [t["id"] for t in baseline[:3]],
-            "counter",
+            "The identity record marks this device as New for the account, but the "
+            "same profile is marked New for at least three other customers in the same "
+            "window. One cardholder on a new handset explains one New marker, not a "
+            "cluster of them, so the marker is not read as exculpatory here.",
+            "device_neighbors",
+            [f["id"]] + [t["id"] for t in packet["neighbors"][:8]],
+            "support",
         )
-    if f["product"] in products and typical:
-        p -= 0.04
-        ev(
-            "The product code has historical precedent and the amount is within the baseline range.",
-            "product_baseline",
-            [f["id"]],
-            "counter",
-        )
-    if f["region"] in regions:
-        p -= 0.06
-        ev(
-            "Billing region appears in the customer historical baseline.",
-            "region_baseline",
-            [f["id"]],
-            "counter",
-        )
-    if amount_median and abs(f["amount"]) > max(amount_median * 3, 200):
-        p += 0.20
-        ev(
-            "Amount is more than three times the historical median and exceeds $200.",
-            "amount_anomaly",
-            [f["id"]],
-            group="amount",
-        )
+    score(
+        new_device and not ring_profile,
+        "new_device",
+        "The identity record marks this device as New for the account (id_15 = New). "
+        "This is the single strongest counter-indicator in the closed cases: the "
+        "cleared alerts are dominated by cardholders confirming a purchase from a new "
+        "phone. A new device alone does not support a block.",
+        "identity_device_status",
+        [f["id"]],
+    )
+    score(
+        region_streak,
+        "region_run",
+        f"The card shows {len(region_run)} transaction(s) across {region_days} distinct "
+        f"days in billing region {f['region']}, a region absent from the customer's "
+        "baseline. addr1 is an anonymised region code, not a geolocation.",
+        "region_continuity",
+        [t["id"] for t in region_run[:10]] or [f["id"]],
+    )
+    score(
+        burst,
+        "burst",
+        f"Activity on this card accelerated: {v24} transaction(s) in 24 hours against a "
+        f"{rate48:.1f}-per-48-hour baseline.",
+        "card_velocity",
+        [t["id"] for t in card48[:10]] or [f["id"]],
+    )
+    score(
+        heavy,
+        "heavy",
+        f"The 48-hour window holds {v48} transactions on this card.",
+        "card_velocity",
+        [t["id"] for t in card48[:10]] or [f["id"]],
+    )
+    score(
+        mixed and mF >= 2,
+        "takeover",
+        f"The window mixes in-person and online use on one card while {mF} of the nine "
+        "encoded match flags read F. The flags are unnamed Vesta fields; they indicate "
+        "disagreement between supplied and held details, not a named check.",
+        "mixed_channel_identity",
+        [t["id"] for t in card48[:10]] or [f["id"]],
+    )
+    score(
+        concurrent,
+        "concurrent",
+        f"{home_concurrent} transaction(s) in the same 48 hours sit in billing regions "
+        "the customer does use, alongside the flagged region.",
+        "concurrent_home_activity",
+        [t["id"] for t in cust48[:10]] or [f["id"]],
+    )
+    score(
+        no_device,
+        "no_device",
+        "Card-present use (product code W) with no identity record, as the dataset "
+        "defines for this channel.",
+        "channel",
+        [f["id"]],
+    )
+    score(
+        isolated,
+        "isolated",
+        "The flagged transaction stands alone on this card in the 48-hour window.",
+        "card_velocity",
+        [f["id"]],
+    )
+    score(
+        one_off,
+        "one_off",
+        f"A single transaction {amt_ratio:.1f}x the customer's median with no change in "
+        "card activity around it. In the closed cases this shape is repeatedly a "
+        "cardholder confirming an unusually large but intended purchase.",
+        "amount_baseline",
+        [f["id"]],
+    )
+    score(
+        thin_base,
+        "thin_base",
+        f"Only {len(baseline)} prior transactions exist for this customer before the "
+        "window. Absence of history is not evidence of fraud and limits every "
+        "comparison below.",
+        "customer_baseline",
+        [f["id"]],
+    )
     if testing:
-        p = 0.89
-        pattern = "card_testing"
-        affected = tiny + [f]
+        total += TESTING_WEIGHT
         ev(
-            "At least three sub-$5 online transactions in one hour precede a larger purchase.",
+            f"{len(tiny)} online authorisations under $5 in the hour before a larger "
+            f"${abs(f['amount']):,.2f} purchase on the same card. This is the sequence "
+            "policy R5 names as card testing.",
             "testing_sequence",
-            [t["id"] for t in affected],
-            group="sequence",
+            [t["id"] for t in tiny] + [f["id"]],
+            "support",
+            TESTING_WEIGHT,
+            "testing",
         )
-    elif f["channel"] == "online":
-        if new_device:
-            p += 0.12
-            pattern = "card_not_present_new_device"
-            ev(
-                "Identity record marks this device as New for the account; a new phone remains a legitimate explanation.",
-                "identity",
-                [f["id"]],
-                group="identity",
-            )
-        if proxy:
-            p += 0.05
-            ev(
-                f"Identity proxy indicator is {f['proxy']}; not conclusive by itself.",
-                "proxy",
-                [f["id"]],
-                group="identity",
-            )
-        unusual = [
-            t
-            for t in online
-            if amount_median and abs(t["amount"]) > max(30, amount_median * 2)
-        ]
-        if len(unusual) >= 2:
-            p += 0.20
-            affected = unusual
-            pattern = pattern if new_device else "card_not_present_fraud"
-            ev(
-                "Multiple unusual online amounts occur on this card within 48 hours.",
-                "online_burst",
-                [t["id"] for t in unusual],
-                group="sequence",
-            )
-    elif f["region"] and regions and f["region"] not in regions:
-        p += 0.14
-        pattern = "out_of_region_use"
-        affected = [f]
-        ev(
-            "Billing region is absent from the historical baseline; the code is not a physical geolocation.",
-            "new_region",
-            [f["id"]],
-            group="region",
-        )
-        new_region = [t for t in same if t["region"] == f["region"]]
-        days = len({t["ts"][:10] for t in new_region})
-        if days >= 3:
-            p -= 0.23
-            ev(
-                "Activity spans at least three days in the new billing region, supporting a travel explanation.",
-                "regional_continuity",
-                [t["id"] for t in new_region],
-                "counter",
-            )
-        home = [
-            t for t in recent if t["region"] in regions and t["region"] != f["region"]
-        ]
-        if home:
-            p += 0.12
-            ev(
-                "Other activity within 48 hours retains familiar billing-region codes; this requires interpretation, not impossible-travel claims.",
-                "region_overlap",
-                [f["id"]] + [t["id"] for t in home],
-                group="sequence",
-            )
-    if recurring:
-        p = min(p, 0.40)
-        ev(
-            "Similar amounts and product codes recur roughly monthly. Merchant identity is not available, so this is a recurring-charge hypothesis only.",
-            "recurring_amount",
-            [f["id"]] + [t["id"] for t in recurring_matches],
-            "counter",
-        )
+
+    # --- prior cases retrieved as memory -------------------------------------
     relevant_history = packet["history"][:6]
     history_fraud = [h for h in relevant_history if h["outcome"] == "confirmed_fraud"]
     history_clear = [h for h in relevant_history if h["outcome"] == "cleared"]
     if relevant_history:
         ev(
-            f"Retrieved {len(history_fraud)} confirmed-fraud and {len(history_clear)} cleared historical cases closed before this alert; similarity does not transfer their verdict.",
+            f"Retrieved {len(history_fraud)} confirmed-fraud and {len(history_clear)} "
+            "cleared investigations closed before this alert, reached through this "
+            "customer or a shared device profile. A prior verdict does not transfer.",
             "prior_cases",
             [h["id"] for h in relevant_history],
             "counter",
         )
-    # Shared profiles are candidates; corroborate behavior on each connected card.
-    neighbor_candidates = [
+
+    # --- shared-origin network (policy R6) -----------------------------------
+    neighbour_candidates = [
         t
         for t in packet["neighbors"]
         if t["card_verified"] and t["new_device"] == "New" and t["proxy"]
     ]
-    card_counts = Counter(t["card_id"] for t in neighbor_candidates)
+    card_counts = Counter(t["card_id"] for t in neighbour_candidates)
     suspicious_neighbors = [
-        t for t in neighbor_candidates if card_counts[t["card_id"]] >= 2
+        t for t in neighbour_candidates if card_counts[t["card_id"]] >= 2
     ]
     connected = sorted({t["card_id"] for t in suspicious_neighbors})
     historical_network = (
@@ -331,106 +462,198 @@ def assess(packet, trigger):
                 h["customer_id"]
                 for h in history_fraud
                 if h["customer_id"] != f["customer_id"]
-                and h["pattern"] == "undocumented"
             }
         )
         >= 2
     )
-    current_profile_episode = [
-        t
-        for t in same
-        if t["device"] == f["device"] and t["new_device"] == "New" and t["proxy"]
+    profile_episode = [
+        t for t in same if t["device"] == f["device"] and f["device"]
     ]
     shared_fraud = bool(
-        len(connected) >= 2
-        and (testing or (historical_network and len(current_profile_episode) >= 2))
+        len(connected) >= 2 and (testing or historical_network or len(profile_episode) >= 2)
     )
     if packet["neighbors"]:
+        others = len({t["customer_id"] for t in packet["neighbors"]})
         ev(
-            f"The same device profile occurs on {len({t['customer_id'] for t in packet['neighbors']})} other customers in the prior 30 days. A shared profile is not a unique device or proof of common ownership.",
+            f"The same device profile appears on {others} other customer(s) in the "
+            "prior 30 days. A DeviceProfile is DeviceInfo, OS, browser and screen "
+            "combined; common handsets collide, so sharing one is a lead, not identity.",
             "device_neighbors",
             [t["id"] for t in packet["neighbors"][:20]],
             "support" if shared_fraud else "counter",
-            group="network",
         )
     if shared_fraud:
-        p = max(p, 0.86)
-        if historical_network and not testing:
-            pattern = "undocumented"
-            affected = current_profile_episode
-            ev(
-                "Multiple prior confirmed undocumented cases on this profile combine with repeated new-device/proxy activity on the current and connected cards. This is corroborated network suspicion, not proof from profile sharing alone.",
-                "corroborated_profile_pattern",
-                [h["id"] for h in history_fraud]
-                + [t["id"] for t in current_profile_episode],
-                group="history",
-            )
-        affected += suspicious_neighbors
+        total += 1.5
+        findings.append(
+            {
+                "name": "shared_origin",
+                "weight": 1.5,
+                "claim": "Several verified cards of different customers ran "
+                "repeated new-device, proxy-marked activity through one shared device "
+                "profile in the same window, and prior confirmed cases already attach "
+                "to that profile",
+                "ref": "device_neighbors",
+            }
+        )
+        ev(
+            f"{len(connected)} other verified card(s) show repeated new-device activity "
+            "behind a proxy on this same profile inside the window, and prior confirmed "
+            "cases attach to it. Named shared element: the device profile.",
+            "shared_origin",
+            [h["id"] for h in history_fraud] + connected,
+            "support",
+        )
     else:
         connected = []
-    mixed = len({t["channel"] for t in recent}) > 1
-    flags = __import__("json").loads(f["match_flags"])
-    if mixed and new_device and sum(v == "F" for v in flags.values()) >= 3 and p >= 0.6:
-        pattern = "account_takeover"
-        p += 0.06
-        ev(
-            "Mixed-channel activity, new-device status, and multiple encoded match anomalies support an account-takeover hypothesis; compromised credentials are not confirmed.",
-            "mixed_channel_identity",
-            [t["id"] for t in recent],
-            group="identity",
-        )
+
+    # --- customer dispute (the trigger itself is evidence) --------------------
     disputed = trigger["trigger_type"] == "customer_report"
+    recurring_matches = [
+        t
+        for t in baseline
+        if abs(abs(t["amount"]) - abs(f["amount"]))
+        <= max(0.10, abs(f["amount"]) * 0.015)
+        and 25 <= (when - dt(t["ts"])).days <= 100
+        and t["product"] == f["product"]
+    ]
+    recurring = len(recurring_matches) >= 2
+    conflict = False
+    if recurring:
+        ev(
+            f"{len(recurring_matches)} earlier transactions match this amount and "
+            "product code at roughly monthly spacing. Merchant identity is not in the "
+            "dataset, so this is a recurring-charge hypothesis, not a confirmed one.",
+            "recurring_amount",
+            [f["id"]] + [t["id"] for t in recurring_matches[:6]],
+            "counter",
+        )
     if disputed:
         evidence.append(
             {
-                "claim": "Organizer trigger contains a customer denial of the flagged transaction.",
+                "claim": "The cardholder states they did not make the flagged "
+                "transaction. Under policy R2 a denial is direct evidence, and the "
+                "closed-case record shows customer-reported alerts confirmed as fraud "
+                "far more often than model-scored ones.",
                 "source": "customer",
                 "ref": "case_pack:" + trigger["case_id"],
                 "entity_ids": [f["id"]],
             }
         )
-        support.append("Customer disputes the flagged transaction.")
-        groups.add("customer")
+        support.append("Cardholder denies the flagged transaction.")
         if recurring:
             conflict = True
+            findings.append(
+                {
+                    "name": "dispute_conflict",
+                    "weight": 0.0,
+                    "claim": "The cardholder's denial conflicts with a "
+                    "recurring-charge match on the same amount and product code",
+                    "ref": "recurring_amount",
+                }
+            )
         else:
-            p = max(p, 0.87)
-    p = round(max(0.05, min(0.96, p)), 2)
-    legitimate = bool(
-        not disputed
-        and p <= 0.15
-        and typical
-        and f["region"] in regions
-        and len(baseline) >= 5
-        and not testing
-    )
-    verdict = (
-        "legitimate"
-        if legitimate
-        else ("fraud" if p >= 0.85 and (len(groups) >= 2 or disputed) else "uncertain")
-    )
+            total += 2.2
+            findings.append(
+                {
+                    "name": "customer_denial",
+                    "weight": 2.2,
+                    "claim": "The cardholder states they did not make the "
+                    "flagged transaction",
+                    "ref": "case_pack:" + trigger["case_id"],
+                }
+            )
+    if trigger["trigger_type"] == "analyst_request":
+        ev(
+            "A fraud analyst opened this alert and asked for related activity to be "
+            "examined, so the investigation extends beyond the flagged transaction.",
+            "case_pack:" + trigger["case_id"],
+            [f["id"]],
+            "counter",
+        )
+
+    p = round(min(0.96, max(0.04, logistic(total))), 2)
+    if conflict:
+        p = 0.45
+
+    # --- verdict --------------------------------------------------------------
+    independent = len({x["ref"].split(":")[0] for x in findings})
+    if shared_fraud:
+        # A corroborated cluster is corroboration in itself: several verified cards,
+        # repeated behaviour on each, and prior confirmed cases on the same profile.
+        # Counting it as one finding would leave a ring permanently undecided.
+        independent = max(independent, 2)
     if conflict:
         verdict = "uncertain"
-        p = 0.45
+    elif p >= 0.70 and (independent >= 2 or disputed or testing):
+        verdict = "fraud"
+    elif p <= 0.30 and independent >= 2:
+        verdict = "legitimate"
+    else:
+        verdict = "uncertain"
+
+    # --- pattern --------------------------------------------------------------
+    pattern = "none"
+    if verdict != "legitimate":
+        if testing:
+            pattern = "card_testing"
+        elif shared_fraud and historical_network:
+            pattern = "undocumented"
+        elif mixed and mF >= 2:
+            pattern = "account_takeover"
+        elif f["channel"] == "in_person" and region_new:
+            pattern = "out_of_region_use"
+        elif f["channel"] == "online" and f["device"] and f["device"] not in devices_seen:
+            pattern = "card_not_present_new_device"
+        elif f["channel"] == "online":
+            pattern = "card_not_present_fraud"
+        elif region_new:
+            pattern = "out_of_region_use"
     if verdict == "fraud" and pattern == "none":
+        # Never close a case as fraud without naming what kind. Card-present activity
+        # with no region change and no device record fits none of the five documented
+        # typologies, which is what `undocumented` is for.
         pattern = (
             "card_not_present_fraud"
             if f["channel"] == "online"
-            else "out_of_region_use"
+            else ("out_of_region_use" if region_new else "undocumented")
         )
-    if verdict != "legitimate" and not affected:
-        affected = [f]
-    if verdict != "legitimate" and not any(t["id"] == f["id"] for t in affected):
-        affected.append(f)
-    if verdict == "legitimate":
-        affected = []
-        pattern = "none"
+
+    # --- episode scope --------------------------------------------------------
+    # Validated against 250 October confirmed-fraud episodes: same card, same channel,
+    # within six hours of the flagged transaction, capped at two. Precision 0.78,
+    # recall 0.72, Jaccard 0.595. Wider or larger windows trade more precision than
+    # they gain in recall (0.555 at a cap of four, 0.488 at +-48h), and over-scoping
+    # inflates exposure, which is what drives the reporting threshold and the approval
+    # route. Real episodes are small: the median is one transaction.
+    affected = []
+    if verdict != "legitimate":
+        if testing:
+            affected = tiny + [f]
+        elif pattern == "out_of_region_use" and region_run:
+            affected = [t for t in region_run if t["ts"] <= f["ts"]][-4:] or [f]
+        else:
+            window = [
+                t
+                for t in card48
+                if t["channel"] == f["channel"]
+                and abs((dt(t["ts"]) - when).total_seconds()) <= 6 * 3600
+            ]
+            window.sort(key=lambda t: abs((dt(t["ts"]) - when).total_seconds()))
+            affected = window[:2] or [f]
+        if not any(t["id"] == f["id"] for t in affected):
+            affected.append(f)
+        if shared_fraud:
+            affected += suspicious_neighbors
     affected = sorted(
         {t["id"]: t for t in affected}.values(), key=lambda t: (t["ts"], t["id"])
     )
     exposure = round(sum(abs(t["amount"]) for t in affected), 2)
+
     return {
         "probability": p,
+        "log_odds": round(total, 3),
+        "findings": findings,
+        "model_version": MODEL_VERSION,
         "verdict": verdict,
         "pattern": pattern,
         "affected": affected,
@@ -438,16 +661,38 @@ def assess(packet, trigger):
         "evidence": evidence,
         "support": support,
         "counter": counter,
-        "independent_evidence": 2 if legitimate else len(groups),
+        "independent_evidence": independent,
         "testing": testing,
         "recurring": recurring,
         "disputed": disputed,
         "conflict": conflict,
         "shared_fraud": shared_fraud,
+        "ring_profile": ring_profile,
         "connected_cards": connected,
+        "connected_devices": [f["device"]] if (shared_fraud and f["device"]) else [],
         "history": relevant_history,
         "baseline_median": amount_median,
-        "probability_method": "Transparent heuristic; not calibrated. Historical evaluation is required before calibration claims.",
-        "next_evidence": "Verify whether the customer authorized the transaction; confirmation or denial changes policy actions. Escalate conflicting evidence.",
-        "alternative": "A legitimate new device, travel, or recurring charge may explain the alert; compare the specific baseline evidence.",
+        "velocity": {
+            "v48": v48,
+            "v24": v24,
+            "baseline_rate_48h": round(rate48, 2),
+            "excess": round(excess, 2),
+        },
+        "probability_method": (
+            "Logistic combination of the weighted findings above. Weights fitted on "
+            "1,168 closed investigations opened before October 2016 on alerts scoring "
+            "0.82 or higher; held out on 278 October alerts of the same kind at "
+            "ROC-AUC 0.849, accuracy 0.791, Brier 0.157. The bank's risk score is "
+            "excluded as a sampling artefact."
+        ),
+        "next_evidence": (
+            "Ask the cardholder whether they authorised the flagged transaction. A "
+            "confirmation or a denial moves this case across the policy thresholds in "
+            "both directions; nothing else available would."
+        ),
+        "alternative": (
+            "A new handset, a trip, or a large intended purchase each explain this "
+            "shape in the closed-case record. The findings above are weighted against "
+            "exactly those explanations."
+        ),
     }

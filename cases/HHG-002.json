@@ -1,0 +1,149 @@
+{
+  "case_id": "HHG-002",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.07,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.79. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3478782"
+        ]
+      },
+      {
+        "claim": "The customer has 35 prior transactions, median amount $47.29. The flagged $292.36 is 6.2x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3478782",
+          "3433977",
+          "3400552",
+          "3400494",
+          "3400451",
+          "3400436",
+          "3400406"
+        ]
+      },
+      {
+        "claim": "Card C11891-K1 carried 1 transaction(s) in the 48 hours to the alert (1 in the last 24). Its own prior 30 days average 0.6 per 48 hours, so this window runs +0.4 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3478782"
+        ]
+      },
+      {
+        "claim": "The flagged transaction stands alone on this card in the 48-hour window.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3478782"
+        ]
+      },
+      {
+        "claim": "A single transaction 6.2x the customer's median with no change in card activity around it. In the closed cases this shape is repeatedly a cardholder confirming an unusually large but intended purchase.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:amount_baseline",
+        "entity_ids": [
+          "3478782"
+        ]
+      },
+      {
+        "claim": "Retrieved 1 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-4160"
+        ]
+      },
+      {
+        "claim": "Case CC-0657: model scored a $1,769.94 transaction at 0.90. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0657",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0034: model scored a $1,486.49 transaction at 0.89. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0034",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-3761: model scored a $3,891.01 transaction at 0.89. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-3761",
+        "entity_ids": []
+      },
+      {
+        "claim": "SIMULATED verification response: the cardholder confirms they made the transaction. The organizer supplies no customer replies; this is an assumption recorded in evidence_requests, not a customer contact.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "3478782"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-4160"
+    ],
+    "summary": "Alert HHG-002 opened on 2016-11-22 from a risk score on transaction 3478782 ($292.36, online) for card C11891-K1. The findings that moved the assessment most: A single transaction 6.2x the customer's median with no change in card activity around it; The flagged transaction stands alone on this card in the 48-hour window. Card activity ran at 1 transaction(s) in 48 hours against a 0.64 baseline for this card. 1 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 1 of them confirmed fraud. The evidence supports legitimate activity at probability 0.07; no transaction is treated as part of a fraud episode. The simulated reply was that the cardholder confirms they made the transaction, which is recorded as an assumption, not a customer contact.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-002"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 136,
+      "assumed_response": "SIMULATED (confirmed): the cardholder confirms they made the transaction. Assessed fraud probability is 0.46 and the counter-evidence matches the shapes the bank's own cleared cases describe (a new handset, a trip, or an unusually large but intended purchase), so the cardholder is assumed to confirm the transaction."
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "VERIFY_WITH_CUSTOMER",
+        "route": "auto",
+        "reason": "R1: available signals do not establish fraud; seek verification before blocking."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "R3: simulated customer confirmation settles the transaction question."
+      }
+    ],
+    "what_changed": "The simulated reply (the cardholder confirms they made the transaction) moved the assessed probability to 0.07, which changes the policy branch that applies and therefore the recommended actions."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed legitimate at 0.07 with $0.00 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under policy 6: the verification response settles the question. Probability moved to 0.07 and the actions below follow directly from it.",
+  "tool_calls": 13,
+  "tokens": 876,
+  "latency_s": 8.488
+}

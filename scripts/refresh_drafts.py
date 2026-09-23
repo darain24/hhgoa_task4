@@ -1,4 +1,13 @@
-"""Reassess untouched drafts after engine changes, preserving prior snapshots in the event log."""
+"""Reassess drafts after engine changes, preserving prior snapshots in the event log.
+
+Skips only cases an analyst has touched: one where a response was supplied through the
+UI, or one carrying a recorded approval. The agent's own simulated evidence requests are
+not a reason to skip -- it raises those on most cases now, and treating them as analyst
+input would silently leave the majority of the benchmark un-refreshed.
+
+For a full run prefer `scripts/run_benchmark.py --require-graph`, which also re-runs any
+case that did not end up graph-backed.
+"""
 
 import asyncio
 import json
@@ -16,8 +25,8 @@ async def main():
         ids = [r[0] for r in c.execute("SELECT id FROM cases ORDER BY id")]
     for id in ids:
         r = store.get_case(id)
-        if r["result"] and r["result"]["evidence_requests"]:
-            continue
+        if (r["detail"] or {}).get("last_response"):
+            continue  # an analyst supplied this reply; do not discard it
         with store.connect() as c:
             if c.execute("SELECT 1 FROM approvals WHERE case_id=?", (id,)).fetchone():
                 continue

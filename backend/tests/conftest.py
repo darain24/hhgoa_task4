@@ -1,5 +1,17 @@
 import pytest
-from tracework import store
+from tracework import engine, store
+
+
+@pytest.fixture(autouse=True)
+def offline_graph(monkeypatch):
+    """No test may touch a real TigerGraph workspace.
+
+    `engine.investigate` and `engine.respond` persist the case whenever TG_URL is
+    configured, so without this the suite writes its fixture cases into whatever
+    graph the developer happens to have connected. Tests that exercise the adapter
+    patch it explicitly instead.
+    """
+    monkeypatch.setattr(engine, "TG_URL", "")
 
 
 @pytest.fixture

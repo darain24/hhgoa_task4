@@ -1,0 +1,247 @@
+{
+  "case_id": "HHG-014",
+  "case": {
+    "status": "escalated",
+    "verdict": "fraud",
+    "fraud_probability": 0.92,
+    "pattern": "undocumented",
+    "pattern_description": "Cards belonging to different customers transact through one shared device profile within a short window, each carrying the same new-device and proxy combination, and prior confirmed cases already attach to that profile. It affects 3 card(s) across separate customers rather than one compromised account. It was found by expanding from the flagged transaction to its device profile and back out to the other cards that touched it, then checking which of those cards already carry confirmed cases. It is not card testing, a single-account takeover or out-of-region use, so it is recorded in its own terms.",
+    "affected_txn_ids": [
+      "3457285",
+      "3457521",
+      "3467828",
+      "3475406",
+      "3478561"
+    ],
+    "first_suspicious_txn_id": "3457285",
+    "connected_card_ids": [
+      "C10326-K1",
+      "C11670-K2"
+    ],
+    "connected_device_profiles": [
+      "SM-G935F Build/NRD90M | Android 7.0 | chrome 62.0 for android | 1920x1080"
+    ],
+    "exposure_usd": 672.3,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.05. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3478561"
+        ]
+      },
+      {
+        "claim": "The customer has 68 prior transactions, median amount $55.95. The flagged $74.96 is 1.3x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3478561",
+          "3458865",
+          "3458103",
+          "3457509",
+          "3448940",
+          "3443869",
+          "3438604"
+        ]
+      },
+      {
+        "claim": "Card C13487-K1 carried 3 transaction(s) in the 48 hours to the alert (3 in the last 24). Its own prior 30 days average 1.0 per 48 hours, so this window runs +2.0 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3477218",
+          "3478561",
+          "3478886"
+        ]
+      },
+      {
+        "claim": "The identity record marks this device as New for the account, but the same profile is marked New for at least three other customers in the same window. One cardholder on a new handset explains one New marker, not a cluster of them, so the marker is not read as exculpatory here.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:device_neighbors",
+        "entity_ids": [
+          "3478561",
+          "3478714",
+          "3478133",
+          "3477916",
+          "3476202",
+          "3475406",
+          "3474445",
+          "3473057",
+          "3473050"
+        ]
+      },
+      {
+        "claim": "Retrieved 6 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-3035",
+          "CC-2985",
+          "CC-2971",
+          "CC-2649",
+          "CC-5531",
+          "CC-5352"
+        ]
+      },
+      {
+        "claim": "The same device profile appears on 19 other customer(s) in the prior 30 days. A DeviceProfile is DeviceInfo, OS, browser and screen combined; common handsets collide, so sharing one is a lead, not identity.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:device_neighbors",
+        "entity_ids": [
+          "3478714",
+          "3478133",
+          "3477916",
+          "3476202",
+          "3475406",
+          "3474445",
+          "3473057",
+          "3473050",
+          "3471032",
+          "3470763",
+          "3469068",
+          "3468463",
+          "3468363",
+          "3468314",
+          "3467828",
+          "3467764",
+          "3467635",
+          "3467346",
+          "3466014",
+          "3463379"
+        ]
+      },
+      {
+        "claim": "2 other verified card(s) show repeated new-device activity behind a proxy on this same profile inside the window, and prior confirmed cases attach to it. Named shared element: the device profile.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:shared_origin",
+        "entity_ids": [
+          "CC-3035",
+          "CC-2985",
+          "CC-2971",
+          "CC-2649",
+          "CC-5531",
+          "CC-5352",
+          "C10326-K1",
+          "C11670-K2"
+        ]
+      },
+      {
+        "claim": "A fraud analyst opened this alert and asked for related activity to be examined, so the investigation extends beyond the flagged transaction.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:case_pack:HHG-014",
+        "entity_ids": [
+          "3478561"
+        ]
+      },
+      {
+        "claim": "**2. Card-not-present fraud.** The number is used online without the card. Amounts and products that don't fit the cardholder's history, often in a burst of two to four within 48 hours. On its own, one unusual online purchase is ambiguous: verify. Policy R1 to R4.",
+        "source": "document",
+        "ref": "tigergraph:vector:POLICY-43",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-1821: cardholder C07212 reported unrecognized activity on card C07212-K2. 2 transaction(s) between 2016-08-06 and 2016-08-06 totaling $500.07 were confirmed fraudulent. Online purchases from a device not previously seen on this account, inconsistent with the cardholder's history. Online transactions came from a A466BG on android webview 4.0. Card blocked and reissued. Customer reimbursed.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-1821",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-3470: cardholder C00750 reported unrecognized activity on card C00750-K2. 12 transaction(s) between 2016-09-08 and 2016-09-13 totaling $1,417.17 were confirmed fraudulent. Mixed-channel activity inconsistent with the cardholder; credentials and card data both used. Online transactions came from a Pixel Build/OPM1.171019.016 on chrome 64.0 for android. Card blocked and reissued. Customer reimbursed.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-3470",
+        "entity_ids": []
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-3035",
+      "CC-2985",
+      "CC-2971",
+      "CC-2649",
+      "CC-5531",
+      "CC-5352"
+    ],
+    "summary": "Alert HHG-014 opened on 2016-11-22 from an analyst request on transaction 3478561 ($74.96, online) for card C13487-K1. The findings that moved the assessment most: Several verified cards of different customers ran repeated new-device, proxy-marked activity through one shared device profile in the same window, and prior confirmed cases already attach to that profile. Card activity ran at 3 transaction(s) in 48 hours against a 1.0 baseline for this card. 6 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 6 of them confirmed fraud. The assessment is fraud at probability 0.92, scoped to 5 transaction(s) and $672.30 exposure, matching an undocumented pattern.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-014"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "§2 and R8: an evidence-supported fraud finding without a cardholder denial needs a human before any action with customer impact."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "§1: raise monitoring sensitivity while the analyst reviews. This contains further exposure at no customer impact, which blocking a card on behavioural evidence alone would not."
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "§3a / R2 / R6 / R9: strong suspicion with threshold exposure or corroborated connected activity; L2 approval required."
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: monitor the corroborated set of connected cards."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "§2 and R8: an evidence-supported fraud finding without a cardholder denial needs a human before any action with customer impact."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "§1: raise monitoring sensitivity while the analyst reviews. This contains further exposure at no customer impact, which blocking a card on behavioural evidence alone would not."
+      },
+      {
+        "action": "FILE_REPORT",
+        "route": "L2",
+        "reason": "§3a / R2 / R6 / R9: strong suspicion with threshold exposure or corroborated connected activity; L2 approval required."
+      },
+      {
+        "action": "MONITOR_CONNECTED_CARDS",
+        "route": "auto",
+        "reason": "R6: monitor the corroborated set of connected cards."
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": true,
+    "reason": "Policy 3a: fraud is strongly suspected and the activity connects to a shared device profile (R6), and the pattern matches none of the documented typologies (R9). FILE_REPORT is always L2.",
+    "narrative": "Customer C13487, an account holder of this institution, holds card C13487-K1. Between 2016-11-14 16:54 and 2016-11-22 16:11 this institution identified 5 transaction(s) on that card totalling $672.30 that appear to be unauthorised. The transactions were $159.30, $103.62, $78.14, $256.28, $74.96, carried out through the online channel, billed to region code 191.0 in country code 87.0. Transaction identifiers are 3457285, 3457521, 3467828, 3475406, 3478561. The online activity originated from the device profile \"SM-G935F Build/NRD90M | Android 7.0 | chrome 62.0 for android | 1920x1080\", which the identity record marks as New for this account and which carries the proxy indicator IP_PROXY:ANONYMOUS. The activity was identified as suspicious on the following grounds. Several verified cards of different customers ran repeated new-device, proxy-marked activity through one shared device profile in the same window, and prior confirmed cases already attach to that profile. The same device profile links this activity to 2 other card(s) of other customers showing comparable activity in the same window: C10326-K1, C11670-K2. The shared element named in this report is the device profile, not an identified individual. 6 prior investigation(s) closed by this institution as confirmed fraud are reachable from the same customer or device profile and were used as background: CC-3035, CC-2985, CC-2971, CC-2649, CC-5531, CC-5352. The pattern is assessed as an undocumented pattern at a fraud probability of 0.92, derived from the weighted findings listed in the case file rather than from the detection model's own score. This report is filed under section 3a of the institution's fraud policy and requires L2 approval; no card action has been executed at the time of filing.",
+    "subjects": [
+      "C13487",
+      "C13487-K1",
+      "C10326-K1",
+      "C11670-K2",
+      "SM-G935F Build/NRD90M | Android 7.0 | chrome 62.0 for android | 1920x1080"
+    ],
+    "total_amount_usd": 672.3,
+    "activity_dates": [
+      "2016-11-14",
+      "2016-11-22"
+    ]
+  },
+  "stop_reason": "Stopped under policy 6: probability 0.92 is past the threshold on 2 independent findings. Further graph traversal would add detail, not change the decision.",
+  "tool_calls": 25,
+  "tokens": 1279,
+  "latency_s": 9.714
+}

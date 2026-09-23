@@ -1,0 +1,267 @@
+{
+  "case_id": "HHG-008",
+  "case": {
+    "status": "escalated",
+    "verdict": "uncertain",
+    "fraud_probability": 0.45,
+    "pattern": "card_not_present_fraud",
+    "pattern_description": "",
+    "affected_txn_ids": [
+      "3557987",
+      "3558054"
+    ],
+    "first_suspicious_txn_id": "3557987",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 111.37,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.38. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3558054"
+        ]
+      },
+      {
+        "claim": "The customer has 300 prior transactions, median amount $35.45. The flagged $55.68 is 1.6x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3558054",
+          "3536767",
+          "3535841",
+          "3535310",
+          "3534446",
+          "3533520",
+          "3531570"
+        ]
+      },
+      {
+        "claim": "Card C13171-K2 carried 14 transaction(s) in the 48 hours to the alert (7 in the last 24). Its own prior 30 days average 9.0 per 48 hours, so this window runs +5.0 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3553223",
+          "3553269",
+          "3553275",
+          "3553281",
+          "3554288",
+          "3554589",
+          "3554683",
+          "3555638",
+          "3555768",
+          "3556719",
+          "3557118",
+          "3557979"
+        ]
+      },
+      {
+        "claim": "The identity record marks this device as already known to the account (id_15 = Found). In the closed cases, activity from a recognised device is where confirmed compromise concentrates; an unrecognised one is usually a cardholder on a new handset.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:identity_device_status",
+        "entity_ids": [
+          "3558054"
+        ]
+      },
+      {
+        "claim": "The card shows 79 transaction(s) across 14 distinct days in billing region , a region absent from the customer's baseline. addr1 is an anonymised region code, not a geolocation.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:region_continuity",
+        "entity_ids": [
+          "3518015",
+          "3518238",
+          "3518407",
+          "3519654",
+          "3519763",
+          "3520177",
+          "3520460",
+          "3523471",
+          "3523491",
+          "3523501"
+        ]
+      },
+      {
+        "claim": "Activity on this card accelerated: 7 transaction(s) in 24 hours against a 9.0-per-48-hour baseline.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3553223",
+          "3553269",
+          "3553275",
+          "3553281",
+          "3554288",
+          "3554589",
+          "3554683",
+          "3555638",
+          "3555768",
+          "3556719"
+        ]
+      },
+      {
+        "claim": "The 48-hour window holds 14 transactions on this card.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3553223",
+          "3553269",
+          "3553275",
+          "3553281",
+          "3554288",
+          "3554589",
+          "3554683",
+          "3555638",
+          "3555768",
+          "3556719"
+        ]
+      },
+      {
+        "claim": "Retrieved 4 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-5559",
+          "CC-5541",
+          "CC-5542",
+          "CC-5513"
+        ]
+      },
+      {
+        "claim": "The same device profile appears on 55 other customer(s) in the prior 30 days. A DeviceProfile is DeviceInfo, OS, browser and screen combined; common handsets collide, so sharing one is a lead, not identity.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:device_neighbors",
+        "entity_ids": [
+          "3558263",
+          "3558260",
+          "3558184",
+          "3558146",
+          "3558128",
+          "3558114",
+          "3557969",
+          "3557941",
+          "3557834",
+          "3557800",
+          "3557727",
+          "3557657",
+          "3557537",
+          "3557527",
+          "3557435",
+          "3557424",
+          "3557203",
+          "3557178",
+          "3557106",
+          "3557061"
+        ]
+      },
+      {
+        "claim": "2 earlier transactions match this amount and product code at roughly monthly spacing. Merchant identity is not in the dataset, so this is a recurring-charge hypothesis, not a confirmed one.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:recurring_amount",
+        "entity_ids": [
+          "3558054",
+          "3469864",
+          "3421195"
+        ]
+      },
+      {
+        "claim": "The cardholder states they did not make the flagged transaction. Under policy R2 a denial is direct evidence, and the closed-case record shows customer-reported alerts confirmed as fraud far more often than model-scored ones.",
+        "source": "customer",
+        "ref": "case_pack:HHG-008",
+        "entity_ids": [
+          "3558054"
+        ]
+      },
+      {
+        "claim": "**R6. Shared origin.** When several cards show fraud from the same device profile, the same billing region, or the same recipient email in one window, name the shared element, recommend `CREATE_CASE` and `FILE_REPORT`, and `MONITOR_CONNECTED_CARDS` for every card that shares it.",
+        "source": "document",
+        "ref": "tigergraph:vector:POLICY-16",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0696: model scored a $13.68 transaction at 0.83. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0696",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0873: model scored a $50.05 transaction at 0.93. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0873",
+        "entity_ids": []
+      },
+      {
+        "claim": "SIMULATED verification response: the reply conflicts with the transaction evidence. The organizer supplies no customer replies; this is an assumption recorded in evidence_requests, not a customer contact.",
+        "source": "customer",
+        "ref": "evidence_request:1",
+        "entity_ids": [
+          "3558054"
+        ]
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-5559",
+      "CC-5541",
+      "CC-5542",
+      "CC-5513"
+    ],
+    "summary": "Alert HHG-008 opened on 2016-12-20 from a customer report on transaction 3558054 ($55.68, online) for card C13171-K2. The findings that moved the assessment most: The identity record marks this device as already known to the account (id_15 = Found); The card shows 79 transaction(s) across 14 distinct days in billing region , a region absent from the customer's baseline. Card activity ran at 14 transaction(s) in 48 hours against a 9.0 baseline for this card. 4 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 4 of them confirmed fraud. The evidence is not sufficient to decide at probability 0.45, so verification was requested before any action with customer impact. The simulated reply was that the reply conflicts with the transaction evidence, which is recorded as an assumption, not a customer contact.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-008"
+  },
+  "evidence_requests": [
+    {
+      "type": "customer_validation",
+      "asked_after_step": 100,
+      "assumed_response": "SIMULATED (conflicting): the reply conflicts with the transaction evidence. The cardholder disputes a charge that matches their own recurring amount and product code. The reply is assumed to restate the dispute without resolving the contradiction, which is the case policy R7 and R8 describe."
+    }
+  ],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "R8: evidence conflicts; human review is required."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R8: preserve visibility while an analyst resolves conflicting evidence."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "R8: evidence conflicts; human review is required."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "R8: preserve visibility while an analyst resolves conflicting evidence."
+      }
+    ],
+    "what_changed": "The simulated reply (the reply conflicts with the transaction evidence) did not move the case across a policy threshold, so the recommendation stands."
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed uncertain at 0.45 with $111.37 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under R8. The cardholder's denial and the recurring-charge match point in opposite directions, and no further graph evidence available before the alert cutoff separates them. A human analyst resolves this.",
+  "tool_calls": 21,
+  "tokens": 1265,
+  "latency_s": 10.775
+}

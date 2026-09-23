@@ -1,0 +1,195 @@
+{
+  "case_id": "HHG-007",
+  "case": {
+    "status": "escalated",
+    "verdict": "fraud",
+    "fraud_probability": 0.77,
+    "pattern": "undocumented",
+    "pattern_description": "Card-present activity accelerated sharply on one card without moving to a new billing region, without a device record to examine, and without the mixed-channel signature of an account takeover: 27 transaction(s) in 48 hours against a 28.43 baseline for this card. It affects this cardholder alone on present evidence. It was found by comparing the card's own 48-hour rate with its preceding 30 days rather than by matching a known typology, and it fits none of the five documented patterns.",
+    "affected_txn_ids": [
+      "3514948",
+      "3515001"
+    ],
+    "first_suspicious_txn_id": "3514948",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 219.94,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.87. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3514948"
+        ]
+      },
+      {
+        "claim": "The customer has 300 prior transactions, median amount $91.96. The flagged $111.92 is 1.2x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3514948",
+          "3493319",
+          "3493061",
+          "3493040",
+          "3492943",
+          "3492288",
+          "3491420"
+        ]
+      },
+      {
+        "claim": "Card C09933-K2 carried 27 transaction(s) in the 48 hours to the alert (20 in the last 24). Its own prior 30 days average 28.4 per 48 hours, so this window runs -1.4 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3509151",
+          "3509355",
+          "3509392",
+          "3509466",
+          "3510700",
+          "3511523",
+          "3511607",
+          "3511937",
+          "3512302",
+          "3512690",
+          "3512716",
+          "3513073"
+        ]
+      },
+      {
+        "claim": "Activity on this card accelerated: 20 transaction(s) in 24 hours against a 28.4-per-48-hour baseline.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3509151",
+          "3509355",
+          "3509392",
+          "3509466",
+          "3510700",
+          "3511523",
+          "3511607",
+          "3511937",
+          "3512302",
+          "3512690"
+        ]
+      },
+      {
+        "claim": "The 48-hour window holds 27 transactions on this card.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3509151",
+          "3509355",
+          "3509392",
+          "3509466",
+          "3510700",
+          "3511523",
+          "3511607",
+          "3511937",
+          "3512302",
+          "3512690"
+        ]
+      },
+      {
+        "claim": "Card-present use (product code W) with no identity record, as the dataset defines for this channel.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:channel",
+        "entity_ids": [
+          "3514948"
+        ]
+      },
+      {
+        "claim": "Retrieved 6 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-5521",
+          "CC-5092",
+          "CC-4787",
+          "CC-4597",
+          "CC-4455",
+          "CC-4277"
+        ]
+      },
+      {
+        "claim": "Case CC-0873: model scored a $50.05 transaction at 0.93. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0873",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0696: model scored a $13.68 transaction at 0.83. Cardholder confirmed travel to the billing region in question. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0696",
+        "entity_ids": []
+      },
+      {
+        "claim": "Every transaction carries a `risk_score` between 0 and 1 from the bank's detection model. The model is useful and imperfect: many high scores are legitimate, and some fraud scores low. A score is a reason to look, never a verdict. The only confirmed outcomes are in the closed cases.",
+        "source": "document",
+        "ref": "tigergraph:vector:POLICY-3",
+        "entity_ids": []
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-5521",
+      "CC-5092",
+      "CC-4787",
+      "CC-4597",
+      "CC-4455",
+      "CC-4277"
+    ],
+    "summary": "Alert HHG-007 opened on 2016-12-05 from a risk score on transaction 3514948 ($111.92, in person) for card C09933-K2. The findings that moved the assessment most: Activity on this card accelerated: 20 transaction(s) in 24 hours against a 28.4-per-48-hour baseline; Card-present use (product code W) with no identity record, as the dataset defines for this channel. Card activity ran at 27 transaction(s) in 48 hours against a 28.43 baseline for this card. 6 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 6 of them confirmed fraud. The assessment is fraud at probability 0.77, scoped to 2 transaction(s) and $219.94 exposure, matching an undocumented pattern.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-007"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "§2 and R8: an evidence-supported fraud finding without a cardholder denial needs a human before any action with customer impact."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "§1: raise monitoring sensitivity while the analyst reviews. This contains further exposure at no customer impact, which blocking a card on behavioural evidence alone would not."
+      }
+    ],
+    "final": [
+      {
+        "action": "CREATE_CASE",
+        "route": "auto",
+        "reason": "§3a: maintain an internal investigation record; persist supporting evidence."
+      },
+      {
+        "action": "ESCALATE_TO_ANALYST",
+        "route": "auto",
+        "reason": "§2 and R8: an evidence-supported fraud finding without a cardholder denial needs a human before any action with customer impact."
+      },
+      {
+        "action": "MONITOR_CARD",
+        "route": "auto",
+        "reason": "§1: raise monitoring sensitivity while the analyst reviews. This contains further exposure at no customer impact, which blocking a card on behavioural evidence alone would not."
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed fraud at 0.77 with $219.94 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under policy 6: probability 0.77 is past the threshold on 2 independent findings. Further graph traversal would add detail, not change the decision.",
+  "tool_calls": 14,
+  "tokens": 898,
+  "latency_s": 8.821
+}

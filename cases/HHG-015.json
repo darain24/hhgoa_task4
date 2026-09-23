@@ -1,0 +1,147 @@
+{
+  "case_id": "HHG-015",
+  "case": {
+    "status": "closed_legitimate",
+    "verdict": "legitimate",
+    "fraud_probability": 0.15,
+    "pattern": "none",
+    "pattern_description": "",
+    "affected_txn_ids": [],
+    "first_suspicious_txn_id": "",
+    "connected_card_ids": [],
+    "connected_device_profiles": [],
+    "exposure_usd": 0.0,
+    "evidence": [
+      {
+        "claim": "The bank's model scored the flagged transaction 0.77. That is the reason this alert exists, not a finding. It carries no weight in this assessment: across the 5,565 closed cases every cleared alert scored 0.82 or higher, so the score records which alerts were opened, not which were fraud.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:flagged_transaction",
+        "entity_ids": [
+          "3464869"
+        ]
+      },
+      {
+        "claim": "The customer has 65 prior transactions, median amount $99.93. The flagged $599.94 is 6.0x that median.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:customer_baseline",
+        "entity_ids": [
+          "3464869",
+          "3444271",
+          "3437403",
+          "3418766",
+          "3405413",
+          "3395339",
+          "3381585"
+        ]
+      },
+      {
+        "claim": "Card C03042-K1 carried 4 transaction(s) in the 48 hours to the alert (4 in the last 24). Its own prior 30 days average 0.4 per 48 hours, so this window runs +3.6 against the card's own rhythm.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3462385",
+          "3462387",
+          "3462404",
+          "3464869"
+        ]
+      },
+      {
+        "claim": "The identity record marks this device as New for the account (id_15 = New). This is the single strongest counter-indicator in the closed cases: the cleared alerts are dominated by cardholders confirming a purchase from a new phone. A new device alone does not support a block.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:identity_device_status",
+        "entity_ids": [
+          "3464869"
+        ]
+      },
+      {
+        "claim": "Activity on this card accelerated: 4 transaction(s) in 24 hours against a 0.4-per-48-hour baseline.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:card_velocity",
+        "entity_ids": [
+          "3462385",
+          "3462387",
+          "3462404",
+          "3464869"
+        ]
+      },
+      {
+        "claim": "Retrieved 4 confirmed-fraud and 0 cleared investigations closed before this alert, reached through this customer or a shared device profile. A prior verdict does not transfer.",
+        "source": "graph",
+        "ref": "tigergraph:verified_derivation:prior_cases",
+        "entity_ids": [
+          "CC-5337",
+          "CC-5107",
+          "CC-5139",
+          "CC-5111"
+        ]
+      },
+      {
+        "claim": "Case CC-0034: model scored a $1,486.49 transaction at 0.89. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0034",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-0657: model scored a $1,769.94 transaction at 0.90. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-0657",
+        "entity_ids": []
+      },
+      {
+        "claim": "Case CC-3761: model scored a $3,891.01 transaction at 0.89. Cardholder confirmed the purchase. Amount unusual for this customer but consistent with their stated intent. Alert cleared.",
+        "source": "document",
+        "ref": "tigergraph:vector:CC-3761",
+        "entity_ids": []
+      }
+    ],
+    "similar_prior_cases": [
+      "CC-5337",
+      "CC-5107",
+      "CC-5139",
+      "CC-5111"
+    ],
+    "summary": "Alert HHG-015 opened on 2016-11-17 from a risk score on transaction 3464869 ($599.94, online) for card C03042-K1. The findings that moved the assessment most: The identity record marks this device as New for the account (id_15 = New); Activity on this card accelerated: 4 transaction(s) in 24 hours against a 0.4-per-48-hour baseline. Card activity ran at 4 transaction(s) in 48 hours against a 0.43 baseline for this card. 4 closed investigation(s) reachable from this customer or its device profile were retrieved as memory, 4 of them confirmed fraud. The evidence supports legitimate activity at probability 0.15; no transaction is treated as part of a fraud episode.",
+    "written_to_graph": true,
+    "graph_case_id": "HHG-015"
+  },
+  "evidence_requests": [],
+  "next_best_actions": {
+    "initial": [
+      {
+        "action": "ALLOW_TRANSACTION",
+        "route": "auto",
+        "reason": "§1 and §6: evidence supports legitimate activity."
+      },
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "§6: two independent corroborating findings support closure."
+      }
+    ],
+    "final": [
+      {
+        "action": "ALLOW_TRANSACTION",
+        "route": "auto",
+        "reason": "§1 and §6: evidence supports legitimate activity."
+      },
+      {
+        "action": "CLOSE_NO_FRAUD",
+        "route": "auto",
+        "reason": "§6: two independent corroborating findings support closure."
+      }
+    ],
+    "what_changed": "nothing"
+  },
+  "sar": {
+    "file": false,
+    "reason": "Policy 3a: a report is required only when fraud is confirmed or strongly suspected and exposure exceeds $1,000, the activity connects to a shared device profile or region cluster, or the pattern is coordinated or undocumented. This case is assessed legitimate at 0.15 with $0.00 exposure and 0 connected card(s), so none of those conditions is met and the internal case alone is the correct record.",
+    "narrative": "",
+    "subjects": [],
+    "total_amount_usd": 0.0,
+    "activity_dates": []
+  },
+  "stop_reason": "Stopped under policy 6: probability 0.15 is past the threshold on 2 independent findings. Further graph traversal would add detail, not change the decision.",
+  "tool_calls": 21,
+  "tokens": 934,
+  "latency_s": 8.601
+}
