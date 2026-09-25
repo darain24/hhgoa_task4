@@ -13,13 +13,9 @@ import {
   ArrowDownToLine,
   ArrowRight,
   ArrowUpRight,
-  Bell,
   BookOpen,
   Check,
-  CheckCheck,
-  ChevronDown,
   ChevronRight,
-  CircleDot,
   Clock3,
   Command,
   FileText,
@@ -32,10 +28,7 @@ import {
   Network,
   Play,
   Search,
-  ShieldCheck,
-  SlidersHorizontal,
   Sparkles,
-  SquareArrowOutUpRight,
   TriangleAlert,
   X,
 } from "lucide-react";
@@ -272,8 +265,8 @@ export default function App() {
       type: "smoothstep",
       animated: false,
       style: { stroke: "#aeb8a2", strokeWidth: 1.5 },
-      labelStyle: { fontSize: 9, fill: "#788171" },
-      labelBgStyle: { fill: "#f7f8f3" },
+      labelStyle: { fontSize: 11, fill: "#5f6a57" },
+      labelBgStyle: { fill: "#fafaf8" },
       markerEnd: { type: MarkerType.ArrowClosed, color: "#aeb8a2" },
     }));
     return { nodes, edges };
@@ -295,21 +288,12 @@ export default function App() {
           }}
         >
           <span className="brand-symbol">
-            <Aperture size={27} />
+            <Aperture size={22} />
           </span>
           <span>
             trace<span className="brand-dot">.</span>
           </span>
         </a>
-        <div className="workspace-switch">
-          <span className="workspace-icon">T</span>
-          <div>
-            <b>Investigation workspace</b>
-            <small>HHGOA · Task 04</small>
-          </div>
-          <ChevronDown size={14} />
-        </div>
-        <div className="nav-label">WORKSPACE</div>
         <nav>
           {[
             { name: "Investigations", icon: Layers3, count: cases.length },
@@ -319,6 +303,7 @@ export default function App() {
           ].map(({ name, icon: Icon, count }) => (
             <button
               key={name}
+              title={name}
               className={page === name ? "active" : ""}
               onClick={() => setPage(name)}
             >
@@ -330,89 +315,31 @@ export default function App() {
             </button>
           ))}
         </nav>
-        <div className="rail-note">
-          <div className="orbit">
-            <GitBranch size={21} />
-          </div>
-          <b>Follow the evidence.</b>
-          <p>
-            Every connection is a lead.
-            <br />
-            Every decision needs a reason.
-          </p>
-        </div>
         <div className="rail-bottom">
-          <div className="local-status">
-            <i />
-            <span>Local workspace</span>
-            <Badge tone="green">$0 APIs</Badge>
-          </div>
           <button onClick={() => setModal("services")}>
-            <SlidersHorizontal size={16} />
-            Service connections
-            <ArrowUpRight size={14} />
-          </button>
-          <div className="profile">
-            <div>AN</div>
+            <span className="status-dot" />
             <span>
-              <b>Fraud analyst</b>
-              <small>Demo workspace</small>
+              <b>System status</b>
+              <small>Local only · $0 APIs</small>
             </span>
-            <ShieldCheck size={17} />
-          </div>
+            <ChevronRight size={16} />
+          </button>
         </div>
       </aside>
       <div className="main-shell">
-        <header className="topbar">
-          <div className="breadcrumb">
-            Workspace
-            <ChevronRight size={13} />
-            <b>{page}</b>
-          </div>
-          <div className="top-actions">
-            <span>
-              <LockKeyhole size={13} />
-              Local & cost-controlled
-            </span>
-            <button
-              aria-label="View service status"
-              onClick={() => setModal("services")}
-            >
-              <Bell size={17} />
-              <i />
-            </button>
-            <div className="avatar">AN</div>
-          </div>
-        </header>
         <main>
-          <div className="page-heading">
-            <div>
-              <div className="eyebrow">
-                <span /> EVIDENCE BEFORE ACTION
-              </div>
-              <h1>
-                {page === "Investigations"
-                  ? "A clearer picture. A better decision."
-                  : page === "Discovery"
-                    ? "Look beyond the alert."
-                    : page === "Evaluation"
-                      ? "Measure what matters."
-                      : "Policy, made explicit."}
-              </h1>
-              <p>
-                {page === "Investigations"
-                  ? "Investigate connections, resolve uncertainty, and act with confidence."
-                  : page === "Discovery"
-                    ? "Explore candidate networks beyond the twenty benchmark cases."
-                    : page === "Evaluation"
-                      ? "Real checks. Transparent limitations. No invented benchmark scores."
-                      : "The organizer’s rules govern every recommendation and approval route."}
-              </p>
-            </div>
-            <button className="outline" onClick={() => setModal("services")}>
-              <CircleDot size={15} /> System status
-            </button>
-          </div>
+          <header className="page-heading">
+            <h1>{page}</h1>
+            <p>
+              {page === "Investigations"
+                ? "Investigate connections, resolve uncertainty, and act with confidence."
+                : page === "Discovery"
+                  ? "Explore candidate networks beyond the twenty benchmark cases."
+                  : page === "Evaluation"
+                    ? "Real checks. Transparent limitations. No invented benchmark scores."
+                    : "The organizer’s rules govern every recommendation and approval route."}
+            </p>
+          </header>
           {error && (
             <div role="alert" className="alert error">
               <TriangleAlert size={17} />
@@ -434,32 +361,30 @@ export default function App() {
               </button>
             </div>
           )}
-          <div className="stats-strip">
-            <Stat
-              label="BENCHMARK CASES"
-              value={String(cases.length).padStart(2, "0")}
-              note="Organizer case pack"
-              icon={<Layers3 size={19} />}
-            />
-            <Stat
-              label="INVESTIGATIONS SAVED"
-              value={String(metrics?.completed || 0).padStart(2, "0")}
-              note={`${metrics?.valid_exports || 0} structurally valid drafts`}
-              icon={<CheckCheck size={19} />}
-            />
-            <Stat
-              label="AWAITING CLARITY"
-              value={String(metrics?.verdicts?.uncertain || 0).padStart(2, "0")}
-              note="Uncertainty is a valid outcome"
-              icon={<GitBranch size={19} />}
-            />
-            <Stat
-              label="GRAPH PERSISTENCE"
-              value={`${metrics?.graph_verified || 0}/20`}
-              note="Requires verified TigerGraph"
-              icon={<Network size={19} />}
-            />
-          </div>
+          {(page === "Investigations" || page === "Evaluation") && (
+            <div className="stats-strip">
+              <Stat
+                label="Benchmark cases"
+                value={String(cases.length)}
+                note="Organizer case pack"
+              />
+              <Stat
+                label="Investigations saved"
+                value={String(metrics?.completed || 0)}
+                note={`${metrics?.valid_exports || 0} structurally valid drafts`}
+              />
+              <Stat
+                label="Awaiting clarity"
+                value={String(metrics?.verdicts?.uncertain || 0)}
+                note="Uncertainty is a valid outcome"
+              />
+              <Stat
+                label="Graph persistence"
+                value={`${metrics?.graph_verified || 0}/20`}
+                note="Requires verified TigerGraph"
+              />
+            </div>
+          )}
           {page === "Investigations" && (
             <div className="investigation-layout">
               <section className="case-panel">
@@ -467,7 +392,6 @@ export default function App() {
                   <h2>
                     Case inbox <span>{cases.length}</span>
                   </h2>
-                  <SlidersHorizontal size={16} />
                 </div>
                 <div className="search-box">
                   <Search size={15} />
@@ -505,21 +429,15 @@ export default function App() {
                     >
                       <div className="case-line">
                         <b>{c.case_id}</b>
-                        <span
-                          className={
-                            "verdict-dot " + (c.assessment?.verdict || "queued")
-                          }
-                        />
+                        <span>
+                          {c.card_id} · {c.opened_at?.slice(5, 10)}
+                        </span>
                       </div>
                       <div className="case-title">
                         {c.assessment?.pattern &&
                         c.assessment.pattern !== "none"
                           ? human(c.assessment.pattern)
                           : human(c.trigger_type)}
-                      </div>
-                      <div className="case-sub">
-                        {c.card_id}
-                        <span>{c.opened_at?.slice(5, 10)}</span>
                       </div>
                       <div className="case-footer">
                         <Badge
@@ -547,10 +465,6 @@ export default function App() {
                     <p className="small-empty">No matching cases.</p>
                   )}
                 </div>
-                <div className="inbox-footer">
-                  <ShieldCheck size={14} />
-                  20 cases. One consistent standard.
-                </div>
               </section>
               <div className="case-workspace">
                 {detail ? (
@@ -558,7 +472,7 @@ export default function App() {
                     <div className="case-header">
                       <div>
                         <div className="case-overline">
-                          INVESTIGATION / <b>{selected}</b>
+                          {selected}
                           {detail.detail?.simulated && (
                             <Badge tone="amber">Simulated evidence</Badge>
                           )}
@@ -566,12 +480,31 @@ export default function App() {
                         <h2>
                           {record?.pattern && record.pattern !== "none"
                             ? human(record.pattern)
-                            : human(trigger?.trigger_type)}{" "}
-                          <span className="case-id">{trigger?.card_id}</span>
+                            : human(trigger?.trigger_type)}
                         </h2>
-                        <p>
-                          <Clock3 size={12} /> {trigger?.opened_at}{" "}
-                          <span>·</span> {human(trigger?.trigger_type)}
+                        <p className="case-meta">
+                          <span>{trigger?.card_id}</span>
+                          <span>
+                            <Clock3 size={14} /> {trigger?.opened_at}
+                          </span>
+                          <span>{human(trigger?.trigger_type)}</span>
+                          <button
+                            className={
+                              "source-chip " +
+                              (record?.written_to_graph ? "verified" : "")
+                            }
+                            onClick={() => setModal("services")}
+                            title={
+                              record?.written_to_graph
+                                ? "Case persistence confirmed."
+                                : "Real organizer data · TigerGraph integration not yet verified"
+                            }
+                          >
+                            <span className="status-dot" />
+                            {record?.written_to_graph
+                              ? "Graph record verified"
+                              : "Local evidence mode · graph not verified"}
+                          </button>
                         </p>
                       </div>
                       <div className="case-header-actions">
@@ -612,22 +545,6 @@ export default function App() {
                         </button>
                       </div>
                     </div>
-                    <div className="source-banner">
-                      <span className="source-dot" />
-                      <b>
-                        {record?.written_to_graph
-                          ? "Graph record verified"
-                          : "Local evidence mode"}
-                      </b>
-                      <span>
-                        {record?.written_to_graph
-                          ? "Case persistence confirmed."
-                          : "Real organizer data · TigerGraph integration not yet verified"}
-                      </span>
-                      <button onClick={() => setModal("services")}>
-                        Details <ArrowUpRight size={12} />
-                      </button>
-                    </div>
                     {answer ? (
                       <>
                         <div className="analysis-grid">
@@ -664,22 +581,22 @@ export default function App() {
                                   </button>
                                 ))}
                               </div>
-                              <button
-                                title="Clear evidence highlight"
-                                onClick={() => setFocus([])}
-                              >
-                                <Layers3 size={15} />
-                              </button>
+                              {tab === "graph" &&
+                                (focus.length > 0 ? (
+                                  <button
+                                    className="text-button"
+                                    onClick={() => setFocus([])}
+                                  >
+                                    <X size={14} /> Clear highlight
+                                  </button>
+                                ) : (
+                                  <span className="tab-meta">
+                                    {graph.nodes.length} entities
+                                  </span>
+                                ))}
                             </div>
                             {tab === "graph" ? (
                               <>
-                                <div className="graph-caption">
-                                  <span>
-                                    <i className="green-dot" />
-                                    Relationships, not assumptions
-                                  </span>
-                                  <span>{graph.nodes.length} entities</span>
-                                </div>
                                 <div className="graph-area">
                                   <ReactFlow
                                     nodes={graph.nodes}
@@ -690,14 +607,15 @@ export default function App() {
                                     maxZoom={1.5}
                                     nodesDraggable={false}
                                     nodesConnectable={false}
+                                    zoomOnScroll={false}
+                                    preventScrolling={false}
                                     onNodeClick={(_, n) => {
                                       setFocus([n.id]);
-                                      setNotice("Selected entity: " + n.id);
                                     }}
                                     proOptions={{ hideAttribution: true }}
                                   >
                                     <Background
-                                      color="#d8decf"
+                                      color="#e3e5de"
                                       gap={22}
                                       size={1}
                                     />
@@ -746,7 +664,7 @@ export default function App() {
                                             {t.id ===
                                               trigger.flagged_txn_id && (
                                               <span className="tiny-label">
-                                                FLAG
+                                                Flagged
                                               </span>
                                             )}
                                           </b>
@@ -787,171 +705,174 @@ export default function App() {
                             )}
                           </section>
                           <section className="decision-panel">
-                            <div className="section-label">
-                              <ShieldCheck size={15} /> CURRENT ASSESSMENT
-                            </div>
-                            <div className="verdict-row">
-                              <h3>{human(record.verdict)}</h3>
-                              <Badge
-                                tone={
-                                  record.verdict === "fraud"
-                                    ? "red"
-                                    : record.verdict === "legitimate"
-                                      ? "green"
-                                      : "amber"
-                                }
-                              >
-                                {human(record.status)}
-                              </Badge>
-                            </div>
-                            <div className="probability">
-                              <span>Assessed fraud probability</span>
-                              <b>
-                                {Math.round(record.fraud_probability * 100)}
-                                <small>%</small>
-                              </b>
-                            </div>
-                            <div className="probability-bar">
-                              <i
-                                style={{
-                                  width: record.fraud_probability * 100 + "%",
-                                }}
-                              />
-                            </div>
-                            <p className="calibration-note">
-                              Fitted on closed cases · holdout AUC 0.849
-                            </p>
-                            {detail.detail?.assessment?.findings?.length ? (
-                              <div className="findings-breakdown">
-                                <div className="section-label">
-                                  WHY THIS PROBABILITY
-                                </div>
-                                {detail.detail.assessment.findings
-                                  .slice()
-                                  .sort(
-                                    (a: Dict, b: Dict) =>
-                                      Math.abs(b.weight) - Math.abs(a.weight),
-                                  )
-                                  .map((f: Dict) => (
-                                    <div className="finding-row" key={f.name}>
-                                      <span className="finding-name">
-                                        {human(f.name)}
-                                      </span>
-                                      <span
-                                        className={
-                                          f.weight >= 0
-                                            ? "finding-weight up"
-                                            : "finding-weight down"
-                                        }
-                                      >
-                                        {f.weight >= 0 ? "+" : ""}
-                                        {f.weight.toFixed(2)}
-                                      </span>
-                                    </div>
-                                  ))}
-                                <p className="calibration-note">
-                                  Log-odds contributions, summed with a{" "}
-                                  {detail.detail.assessment.log_odds >= 0
-                                    ? "+"
-                                    : ""}
-                                  {detail.detail.assessment.log_odds} total. The
-                                  bank&rsquo;s own risk score contributes nothing
-                                  by design.
-                                </p>
+                            <div className="decision-assessment">
+                              <div className="section-label">
+                                Current assessment
                               </div>
-                            ) : null}
-                            <div className="exposure-row">
-                              <span>Potential exposure</span>
-                              <b>{money(record.exposure_usd)}</b>
-                            </div>
-                            {detail.detail?.statistical_advisory && (
-                              <p
-                                className="calibration-note"
-                                style={{ marginTop: 10 }}
-                              >
-                                Historical-cohort model:{" "}
-                                {Math.round(
-                                  detail.detail.statistical_advisory
-                                    .probability * 100,
-                                )}
-                                % · advisory only; not validated for this
-                                benchmark distribution.
+                              <div className="verdict-row">
+                                <h3>{human(record.verdict)}</h3>
+                                <Badge
+                                  tone={
+                                    record.verdict === "fraud"
+                                      ? "red"
+                                      : record.verdict === "legitimate"
+                                        ? "green"
+                                        : "amber"
+                                  }
+                                >
+                                  {human(record.status)}
+                                </Badge>
+                              </div>
+                              <div className="probability">
+                                <span>Assessed fraud probability</span>
+                                <b>
+                                  {Math.round(record.fraud_probability * 100)}
+                                  <small>%</small>
+                                </b>
+                              </div>
+                              <div className="probability-bar">
+                                <i
+                                  style={{
+                                    width: record.fraud_probability * 100 + "%",
+                                  }}
+                                />
+                              </div>
+                              <p className="calibration-note">
+                                Fitted on closed cases · holdout AUC 0.849
                               </p>
-                            )}
-                            <div className="decision-divider" />
-                            <div className="section-label">
-                              RECOMMENDED NEXT ACTIONS
-                            </div>
-                            <div className="action-list">
-                              {answer.next_best_actions.final.map(
-                                (action: Dict, i: number) => (
-                                  <div className="action" key={action.action}>
-                                    <div className="action-order">{i + 1}</div>
-                                    <div>
-                                      <b>{human(action.action)}</b>
-                                      <p>{action.reason}</p>
-                                      {action.route !== "auto" ? (
-                                        <button
-                                          className="approval-button"
-                                          disabled={
-                                            !!busy ||
-                                            approvals.some(
-                                              (x) => x.action === action.action,
-                                            )
-                                          }
-                                          onClick={() =>
-                                            run("approve", async () => {
-                                              await post(
-                                                "/cases/" +
-                                                  selected +
-                                                  "/approve",
-                                                {
-                                                  action: action.action,
-                                                  route: action.route,
-                                                  decision_revision:
-                                                    detail.revision,
-                                                },
-                                              );
-                                              await loadCase();
-                                              setNotice(
-                                                "Demo approval recorded. No real action was executed.",
-                                              );
-                                            })
+                              {detail.detail?.assessment?.findings?.length ? (
+                                <div className="findings-breakdown">
+                                  <div className="section-label">
+                                    Why this probability
+                                  </div>
+                                  {detail.detail.assessment.findings
+                                    .slice()
+                                    .sort(
+                                      (a: Dict, b: Dict) =>
+                                        Math.abs(b.weight) - Math.abs(a.weight),
+                                    )
+                                    .map((f: Dict) => (
+                                      <div className="finding-row" key={f.name}>
+                                        <span className="finding-name">
+                                          {human(f.name)}
+                                        </span>
+                                        <span
+                                          className={
+                                            f.weight >= 0
+                                              ? "finding-weight up"
+                                              : "finding-weight down"
                                           }
                                         >
-                                          <LockKeyhole size={11} />
-                                          {approvals.some(
-                                            (x) => x.action === action.action,
-                                          )
-                                            ? "Demo approval recorded"
-                                            : action.route +
-                                              " approval · simulate"}
-                                        </button>
-                                      ) : (
-                                        <Badge tone="green">
-                                          Auto-permitted · simulated only
-                                        </Badge>
-                                      )}
-                                    </div>
-                                  </div>
-                                ),
+                                          {f.weight >= 0 ? "+" : ""}
+                                          {f.weight.toFixed(2)}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  <p className="calibration-note">
+                                    Log-odds contributions, summed with a{" "}
+                                    {detail.detail.assessment.log_odds >= 0
+                                      ? "+"
+                                      : ""}
+                                    {detail.detail.assessment.log_odds} total.
+                                    The bank&rsquo;s own risk score contributes
+                                    nothing by design.
+                                  </p>
+                                </div>
+                              ) : null}
+                              <div className="exposure-row">
+                                <span>Potential exposure</span>
+                                <b>{money(record.exposure_usd)}</b>
+                              </div>
+                              {detail.detail?.statistical_advisory && (
+                                <p className="calibration-note">
+                                  Historical-cohort model:{" "}
+                                  {Math.round(
+                                    detail.detail.statistical_advisory
+                                      .probability * 100,
+                                  )}
+                                  % · advisory only; not validated for this
+                                  benchmark distribution.
+                                </p>
                               )}
                             </div>
-                            <button
-                              className="scenario-link"
-                              onClick={showScenarios}
-                              disabled={!!busy}
-                            >
-                              <GitBranch size={15} /> What would change this
-                              decision?
-                              <ArrowRight size={15} />
-                            </button>
+                            <div className="decision-actions">
+                              <div className="section-label">
+                                Recommended next actions
+                              </div>
+                              <div className="action-list">
+                                {answer.next_best_actions.final.map(
+                                  (action: Dict, i: number) => (
+                                    <div className="action" key={action.action}>
+                                      <div className="action-order">
+                                        {i + 1}
+                                      </div>
+                                      <div>
+                                        <b>{human(action.action)}</b>
+                                        <p>{action.reason}</p>
+                                        {action.route !== "auto" ? (
+                                          <button
+                                            className="approval-button"
+                                            disabled={
+                                              !!busy ||
+                                              approvals.some(
+                                                (x) =>
+                                                  x.action === action.action,
+                                              )
+                                            }
+                                            onClick={() =>
+                                              run("approve", async () => {
+                                                await post(
+                                                  "/cases/" +
+                                                    selected +
+                                                    "/approve",
+                                                  {
+                                                    action: action.action,
+                                                    route: action.route,
+                                                    decision_revision:
+                                                      detail.revision,
+                                                  },
+                                                );
+                                                await loadCase();
+                                                setNotice(
+                                                  "Demo approval recorded. No real action was executed.",
+                                                );
+                                              })
+                                            }
+                                          >
+                                            <LockKeyhole size={11} />
+                                            {approvals.some(
+                                              (x) => x.action === action.action,
+                                            )
+                                              ? "Demo approval recorded"
+                                              : action.route +
+                                                " approval · simulate"}
+                                          </button>
+                                        ) : (
+                                          <Badge tone="green">
+                                            Auto-permitted · simulated only
+                                          </Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                              <button
+                                className="scenario-link"
+                                onClick={showScenarios}
+                                disabled={!!busy}
+                              >
+                                <GitBranch size={15} /> What would change this
+                                decision?
+                                <ArrowRight size={15} />
+                              </button>
+                            </div>
                           </section>
                         </div>
                         <div className="findings-grid">
                           <section className="finding-card">
                             <div className="section-label">
-                              <CircleDot size={14} /> SUPPORTING EVIDENCE
+                              Supporting evidence
                             </div>
                             {a?.support
                               .slice(0, 3)
@@ -970,7 +891,7 @@ export default function App() {
                           </section>
                           <section className="finding-card alternative">
                             <div className="section-label">
-                              <GitBranch size={14} /> THE OTHER EXPLANATION
+                              The other explanation
                             </div>
                             {a?.counter
                               .slice(-3)
@@ -985,7 +906,7 @@ export default function App() {
                         <section className="bottom-summary">
                           <div>
                             <div className="section-label">
-                              INVESTIGATOR’S NOTE
+                              Investigator’s note
                             </div>
                             <p>{record.summary}</p>
                             {detail.detail?.synthesis && (
@@ -1033,9 +954,7 @@ export default function App() {
                         </section>
                         <section className="activity-panel">
                           <div className="panel-heading">
-                            <h2>
-                              <Clock3 size={15} /> Investigation activity
-                            </h2>
+                            <h2>Investigation activity</h2>
                             <button
                               className="text-button"
                               onClick={() =>
@@ -1050,7 +969,7 @@ export default function App() {
                           </div>
                           {replay !== null && (
                             <div className="replay-banner">
-                              RECORDED REPLAY ·{" "}
+                              Recorded replay ·{" "}
                               {Math.min(replay + 1, events.length)} /{" "}
                               {events.length} events · final case panels remain
                               current
@@ -1310,9 +1229,7 @@ export default function App() {
           {page === "Policy library" && (
             <section className="standalone policy-library">
               <div className="panel-heading">
-                <h2>
-                  <BookOpen size={18} /> Organizer fraud policy
-                </h2>
+                <h2>Organizer fraud policy</h2>
                 <Badge tone="green">Version 1.0</Badge>
               </div>
               <p className="footnote">
@@ -1322,12 +1239,6 @@ export default function App() {
               <pre>{policy || "Loading policy…"}</pre>
             </section>
           )}
-          <footer className="footer">
-            <span>
-              <Aperture size={13} /> TRACE / INVESTIGATION INTELLIGENCE
-            </span>
-            <span>Built for HHGOA · Powered by evidence</span>
-          </footer>
         </main>
       </div>
       {modal && (
@@ -1385,7 +1296,9 @@ export default function App() {
                     <b>TigerGraph MCP</b>
                     <p>{health?.tigergraph?.reason}</p>
                   </div>
-                  <Badge tone="amber">
+                  <Badge
+                    tone={health?.tigergraph?.available ? "green" : "amber"}
+                  >
                     {health?.tigergraph?.available
                       ? "Reachable"
                       : "Not connected"}
@@ -1556,19 +1469,14 @@ function Stat({
   label,
   value,
   note,
-  icon,
 }: {
   label: string;
   value: string;
   note: string;
-  icon: React.ReactNode;
 }) {
   return (
     <div className="stat">
-      <div>
-        <span>{label}</span>
-        {icon}
-      </div>
+      <span>{label}</span>
       <b>{value}</b>
       <p>{note}</p>
     </div>
